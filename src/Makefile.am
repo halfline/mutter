@@ -150,8 +150,6 @@ libmutter_la_SOURCES =				\
 	meta/errors.h				\
 	core/frame.c				\
 	core/frame.h				\
-	ui/gradient.c				\
-	meta/gradient.h				\
 	core/keybindings.c			\
 	core/keybindings-private.h		\
 	core/main.c				\
@@ -265,7 +263,6 @@ libmutterinclude_headers =			\
 	meta/compositor.h			\
 	meta/display.h				\
 	meta/errors.h				\
-	meta/gradient.h				\
 	meta/group.h				\
 	meta/keybindings.h			\
 	meta/main.h				\
@@ -346,13 +343,11 @@ Meta-$(api_version).gir: libmutter.la
 endif
 
 testboxes_SOURCES = core/testboxes.c
-testgradient_SOURCES = ui/testgradient.c
 testasyncgetprop_SOURCES = x11/testasyncgetprop.c
 
-noinst_PROGRAMS=testboxes testgradient testasyncgetprop
+noinst_PROGRAMS=testboxes testasyncgetprop
 
 testboxes_LDADD = $(MUTTER_LIBS) libmutter.la
-testgradient_LDADD = $(MUTTER_LIBS) libmutter.la
 testasyncgetprop_LDADD = $(MUTTER_LIBS) libmutter.la
 
 dbus_idle_built_sources = meta-dbus-idle-monitor.c meta-dbus-idle-monitor.h
