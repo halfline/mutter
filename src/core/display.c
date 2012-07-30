@@ -809,6 +809,10 @@ meta_display_open (void)
   meta_verbose ("Not compiled with Xcursor support\n");
 #endif /* !HAVE_XCURSOR */
 
+  the_display->barriers = g_hash_table_new_full (g_direct_hash,
+                                                 g_direct_equal,
+                                                 NULL, g_object_unref);
+
   /* Create the leader window here. Set its properties and
    * use the timestamp from one of the PropertyNotify events
    * that will follow.
@@ -1832,6 +1836,10 @@ get_input_event (MetaDisplay *display,
         case XI_Leave:
           return xev;
           break;
+        case XI_BarrierHit:
+        case XI_BarrierLeave:
+          return xev;
+          break;
         default:
           break;
         }
@@ -2396,6 +2404,11 @@ event_callback (XEvent   *event,
 
             }
           break;
+        case XI_BarrierHit:
+        case XI_BarrierLeave:
+          if (meta_display_process_barrier_event (display, (XIBarrierEvent *) xev))
+            filter_out_event = bypass_compositor = TRUE;
+          break;
         }
     }
   else
@@ -2927,6 +2940,9 @@ event_get_modified_window (MetaDisplay *display,
         case XI_Enter:
         case XI_Leave:
           return ((XIEnterEvent *) xev)->event;
+        case XI_BarrierHit:
+        case XI_BarrierLeave:
+          return ((XIBarrierEvent *) xev)->event;
         }
     }
 
@@ -3222,6 +3238,9 @@ meta_spew_xi2event (MetaDisplay *display,
       break;
     case XI_Leave:
       name = "XI_Leave";
+      break;
+    case XI_BarrierHit:
+      name = "XI_BarrierHit";
       break;
     }
 

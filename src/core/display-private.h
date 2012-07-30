@@ -39,6 +39,7 @@
 #include <meta/display.h>
 #include "keybindings-private.h"
 #include <meta/prefs.h>
+#include <meta/barrier.h>
 
 #ifdef HAVE_STARTUP_NOTIFICATION
 #include <libsn/sn.h>
@@ -244,6 +245,9 @@ struct _MetaDisplay
   unsigned int meta_mask;
   MetaKeyCombo overlay_key_combo;
   gboolean overlay_key_only_pressed;
+
+  /* barriers */
+  GHashTable *barriers;
   
   /* Monitor cache */
   unsigned int monitor_cache_invalidated : 1;
@@ -447,5 +451,8 @@ void meta_display_overlay_key_activate (MetaDisplay *display);
 
 /* In above-tab-keycode.c */
 guint meta_display_get_above_tab_keycode (MetaDisplay *display);
+
+gboolean meta_display_process_barrier_event (MetaDisplay    *display,
+                                             XIBarrierEvent *event);
 
 #endif

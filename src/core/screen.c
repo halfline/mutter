@@ -750,6 +750,8 @@ meta_screen_new (MetaDisplay *display,
     XISetMask (mask.mask, XI_FocusIn);
     XISetMask (mask.mask, XI_FocusOut);
     XISetMask (mask.mask, XI_Motion);
+    XISetMask (mask.mask, XI_BarrierHit);
+    XISetMask (mask.mask, XI_BarrierLeave);
     XISelectEvents (xdisplay, xroot, &mask, 1);
 
     event_mask = (SubstructureRedirectMask | SubstructureNotifyMask |
