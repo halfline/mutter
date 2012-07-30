@@ -45,6 +45,22 @@ typedef enum {
   META_BARRIER_DIRECTION_NEGATIVE_Y = (1L << 3),
 } MetaBarrierDirection;
 
+typedef struct {
+  int ref_count;
+
+  int event_id;
+  int dt;
+  double x;
+  double y;
+  double dx;
+  double dy;
+  double raw_dx;
+  double raw_dy;
+} MetaBarrierHitEvent;
+
+#define META_TYPE_BARRIER_HIT_EVENT (meta_barrier_hit_event_get_type ())
+GType meta_barrier_hit_event_get_type (void) G_GNUC_CONST;
+
 G_END_DECLS
 
 #endif /* __META_BARRIER_H__ */

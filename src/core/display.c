@@ -794,6 +794,10 @@ meta_display_open (void)
   meta_verbose ("Not compiled with Xcursor support\n");
 #endif /* !HAVE_XCURSOR */
 
+  the_display->barriers = g_hash_table_new_full (g_direct_hash,
+                                                 g_direct_equal,
+                                                 NULL, g_object_unref);
+
   /* Create the leader window here. Set its properties and
    * use the timestamp from one of the PropertyNotify events
    * that will follow.
@@ -1987,6 +1991,12 @@ event_callback (XEvent   *event,
       /* Let GDK Handle the event too for its own device accounting */
       filter_out_event = FALSE;
       bypass_compositor = FALSE;
+    }
+  else if (display->have_xinput2 &&
+           meta_display_process_barrier_event (display, event))
+    {
+      filter_out_event = TRUE;
+      bypass_compositor = TRUE;
     }
   else
 #endif

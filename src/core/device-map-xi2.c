@@ -28,7 +28,7 @@
 #include "input-events.h"
 
 #define XINPUT2_VERSION_MAJOR 2
-#define XINPUT2_VERSION_MINOR 2
+#define XINPUT2_VERSION_MINOR 3
 
 G_DEFINE_TYPE (MetaDeviceMapXI2, meta_device_map_xi2, META_TYPE_DEVICE_MAP)
 

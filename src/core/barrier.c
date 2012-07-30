@@ -4,6 +4,7 @@
 
 #include <glib-object.h>
 
+#include <X11/extensions/XInput2.h>
 #include <X11/extensions/Xfixes.h>
 #include <meta/util.h>
 #include <meta/barrier.h>
@@ -30,6 +31,14 @@ enum {
 };
 
 static GParamSpec *obj_props[PROP_LAST];
+
+enum {
+  HIT,
+
+  LAST_SIGNAL,
+};
+
+static guint obj_signals[LAST_SIGNAL];
 
 struct _MetaBarrierPrivate
 {
@@ -183,6 +192,7 @@ meta_barrier_activate (MetaBarrier *barrier)
                                               priv->x2, priv->y2,
                                               priv->directions,
                                               n_devices, devices);
+  g_hash_table_insert (priv->display->barriers, GINT_TO_POINTER (priv->barrier), g_object_ref (barrier));
 }
 
 static void
@@ -255,6 +265,24 @@ meta_barrier_class_init (MetaBarrierClass *klass)
 
   g_object_class_install_properties (object_class, PROP_LAST, obj_props);
 
+  /**
+   * MetaBarrier::hit:
+   * @barrier: The #MetaBarrier that was hit
+   * @event: A #MetaBarrierEvent that has the details of how
+   * things were hit.
+   *
+   * When a pointer barrier is hit, this will trigger. This
+   * requires an XI2-enabled server.
+   */
+  obj_signals[HIT] =
+    g_signal_new ("hit",
+                  G_TYPE_FROM_CLASS (object_class),
+                  G_SIGNAL_RUN_FIRST,
+                  0,
+                  NULL, NULL, NULL,
+                  G_TYPE_NONE, 1,
+                  META_TYPE_BARRIER_HIT_EVENT);
+
   g_type_class_add_private (object_class, sizeof(MetaBarrierPrivate));
 }
 
@@ -276,6 +304,7 @@ meta_barrier_destroy (MetaBarrier *barrier)
     return;
 
   XFixesDestroyPointerBarrier (dpy, priv->barrier);
+  g_hash_table_remove (priv->display->barriers, GINT_TO_POINTER (priv->barrier));
   priv->barrier = 0;
 }
 
@@ -284,3 +313,75 @@ meta_barrier_init (MetaBarrier *barrier)
 {
   barrier->priv = GET_PRIVATE (barrier);
 }
+
+static void
+meta_barrier_hit (MetaBarrier          *barrier,
+                  XIBarrierNotifyEvent *xevent)
+{
+  MetaBarrierHitEvent *event = g_slice_new0 (MetaBarrierHitEvent);
+
+  event->ref_count = 1;
+  event->event_id = xevent->event_id;
+  event->dt = xevent->dt;
+
+  event->x = xevent->x;
+  event->y = xevent->y;
+  event->dx = xevent->dx;
+  event->dy = xevent->dy;
+  event->raw_dx = xevent->raw_dx;
+  event->raw_dy = xevent->raw_dy;
+
+  g_signal_emit (barrier, obj_signals[HIT], 0, event);
+}
+
+gboolean
+meta_display_process_barrier_event (MetaDisplay *display,
+                                    XEvent      *ev)
+{
+  if (ev->type == GenericEvent &&
+      ev->xcookie.extension == display->xinput2_opcode)
+    {
+      MetaBarrier *barrier;
+      XIBarrierNotifyEvent *xev;
+
+      g_assert (display->have_xinput2 == TRUE);
+
+      xev = (XIBarrierNotifyEvent *) ev->xcookie.data;
+
+      if (xev->evtype != XI_BarrierHitNotify)
+        return FALSE;
+
+      barrier = g_hash_table_lookup (display->barriers, GINT_TO_POINTER (xev->barrier));
+      if (barrier != NULL)
+        {
+          meta_barrier_hit (barrier, xev);
+          return TRUE;
+        }
+    }
+  return FALSE;
+}
+
+static MetaBarrierHitEvent *
+meta_barrier_hit_event_ref (MetaBarrierHitEvent *event)
+{
+  g_return_val_if_fail (event != NULL, NULL);
+  g_return_val_if_fail (event->ref_count > 0, NULL);
+
+  g_atomic_int_inc ((volatile int *)&event->ref_count);
+  return event;
+}
+
+static void
+meta_barrier_hit_event_unref (MetaBarrierHitEvent *event)
+{
+  g_return_if_fail (event != NULL);
+  g_return_if_fail (event->ref_count > 0);
+
+  if (g_atomic_int_dec_and_test ((volatile int *)&event->ref_count))
+    g_slice_free (MetaBarrierHitEvent, event);
+}
+
+G_DEFINE_BOXED_TYPE (MetaBarrierHitEvent,
+                     meta_barrier_hit_event,
+                     meta_barrier_hit_event_ref,
+                     meta_barrier_hit_event_unref)

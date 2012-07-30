@@ -40,6 +40,7 @@
 #include "keybindings-private.h"
 #include "device-map-private.h"
 #include <meta/prefs.h>
+#include <meta/barrier.h>
 
 #ifdef HAVE_STARTUP_NOTIFICATION
 #include <libsn/sn.h>
@@ -279,6 +280,9 @@ struct _MetaDisplay
   unsigned int meta_mask;
   MetaKeyCombo overlay_key_combo;
   gboolean overlay_key_only_pressed;
+
+  /* barriers */
+  GHashTable *barriers;
   
   /* Monitor cache */
   unsigned int monitor_cache_invalidated : 1;
@@ -321,6 +325,7 @@ struct _MetaDisplay
   int damage_error_base;
   int xfixes_event_base;
   int xfixes_error_base;
+  int xfixes_major_opcode;
   
 #ifdef HAVE_STARTUP_NOTIFICATION
   SnDisplay *sn_display;
@@ -506,5 +511,7 @@ MetaGrabInfo * meta_display_get_grab_info            (MetaDisplay  *display,
 MetaFocusInfo * meta_display_get_focus_info          (MetaDisplay  *display,
                                                       MetaDevice   *device);
 
+gboolean meta_display_process_barrier_event (MetaDisplay *display,
+                                             XEvent      *ev);
 
 #endif

@@ -105,6 +105,9 @@ meta_device_xi2_translate_event_mask (guint  evmask,
       XISetMask (mask, XI_TouchUpdate);
     }
 
+  /* XXX: Find a way to do this better. */
+  XISetMask (mask, XI_BarrierHitNotify);
+
   return mask;
 }
 
