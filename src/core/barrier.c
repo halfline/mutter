@@ -24,6 +24,7 @@ enum {
   PROP_X2,
   PROP_Y2,
   PROP_DIRECTIONS,
+  PROP_DEVICES,
 
   PROP_LAST,
 };
@@ -40,6 +41,7 @@ struct _MetaBarrierPrivate
   int y2;
 
   MetaBarrierDirection directions;
+  GPtrArray *devices;
 
   PointerBarrier barrier;
 };
@@ -71,6 +73,9 @@ meta_barrier_get_property (GObject    *object,
       break;
     case PROP_DIRECTIONS:
       g_value_set_flags (value, priv->directions);
+      break;
+    case PROP_DEVICES:
+      g_value_set_boxed (value, priv->devices);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -106,6 +111,9 @@ meta_barrier_set_property (GObject      *object,
     case PROP_DIRECTIONS:
       priv->directions = g_value_get_flags (value);
       break;
+    case PROP_DEVICES:
+      priv->devices = g_value_dup_boxed (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -125,6 +133,8 @@ meta_barrier_dispose (GObject *object)
                 barrier, priv->barrier);
     }
 
+  g_ptr_array_unref (priv->devices);
+
   G_OBJECT_CLASS (meta_barrier_parent_class)->dispose (object);
 }
 
@@ -140,6 +150,7 @@ meta_barrier_activate (MetaBarrier *barrier)
   MetaBarrierPrivate *priv = barrier->priv;
   Display *dpy;
   Window root;
+  int n_devices, *devices;
 
   if (priv->display == NULL)
     {
@@ -153,10 +164,25 @@ meta_barrier_activate (MetaBarrier *barrier)
   if (meta_barrier_is_active (barrier))
     return;
 
+  if (priv->devices != NULL)
+    {
+      int i;
+      n_devices = priv->devices->len;
+      devices = g_new (int, n_devices);
+      for (i = 0; i < n_devices; i++)
+        devices[i] = meta_device_get_id (g_ptr_array_index (priv->devices, i));
+    }
+  else
+    {
+      n_devices = 0;
+      devices = NULL;
+    }
+
   priv->barrier = XFixesCreatePointerBarrier (dpy, root,
                                               priv->x1, priv->y1,
                                               priv->x2, priv->y2,
-                                              priv->directions, 0, NULL);
+                                              priv->directions,
+                                              n_devices, devices);
 }
 
 static void
@@ -212,6 +238,19 @@ meta_barrier_class_init (MetaBarrierClass *klass)
     g_param_spec_flags ("directions", "", "",
                         META_TYPE_BARRIER_DIRECTION,
                         0,
+                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+
+  /**
+   * MetaBarrier:devices:
+   *
+   * An array of #MetaDevices that the poiner barrier should block.
+   *
+   * Type: GLib.PtrArray(Meta.Device)
+   * Transfer: container
+   */
+  obj_props[PROP_DEVICES] =
+    g_param_spec_boxed ("devices", "", "",
+                        G_TYPE_PTR_ARRAY,
                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, PROP_LAST, obj_props);
