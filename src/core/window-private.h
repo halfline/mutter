@@ -562,7 +562,8 @@ gboolean meta_window_property_notify   (MetaWindow *window,
 gboolean meta_window_client_message    (MetaWindow *window,
                                         XEvent     *event);
 gboolean meta_window_notify_focus      (MetaWindow *window,
-                                        XEvent     *event);
+                                        XIEnterEvent *xev);
+void     meta_window_unmap_notify      (MetaWindow *window);
 
 void     meta_window_set_current_workspace_hint (MetaWindow *window);
 
@@ -586,7 +587,7 @@ void meta_window_handle_mouse_grab_op_sync_event (MetaWindow *window,
 #endif /* HAVE_XSYNC */
 
 void meta_window_handle_mouse_grab_op_event (MetaWindow *window,
-                                             XEvent     *event);
+                                             XIDeviceEvent *xev);
 
 GList* meta_window_get_workspaces (MetaWindow *window);
 
