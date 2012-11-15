@@ -779,7 +779,26 @@ meta_display_open (void)
                   the_display->xfixes_error_base, 
                   the_display->xfixes_event_base);
   }
-      
+
+  {
+    int major = 2, minor = 2;
+    gboolean has_xi = FALSE;
+
+    if (!XQueryExtension (the_display->xdisplay,
+                          "XInputExtension",
+                          &the_display->xinput2_opcode,
+                          &the_display->xinput2_error_base,
+                          &the_display->xinput2_event_base))
+      meta_fatal ("Could not find XInput2\n");
+
+    if (XIQueryVersion (the_display->xdisplay, &major, &minor) == Success)
+      if (((major * 10) + minor) >= 22)
+        has_xi = TRUE;
+
+    if (!has_xi)
+      meta_fatal ("X server does not have an up to date version of XInput2\n");
+  }
+
 #ifdef HAVE_XCURSOR
   {
     XcursorSetTheme (the_display->xdisplay, meta_prefs_get_cursor_theme ());
