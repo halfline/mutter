@@ -9225,59 +9225,61 @@ update_tile_mode (MetaWindow *window)
     }
 }
 
+#ifdef HAVE_XSYNC
+void
+meta_window_handle_mouse_grab_op_sync_event (MetaWindow *window,
+                                             XEvent     *event)
+{
+  meta_topic (META_DEBUG_RESIZING,
+              "Alarm event received last motion x = %d y = %d\n",
+              window->display->grab_latest_motion_x,
+              window->display->grab_latest_motion_y);
+
+  /* If sync was previously disabled, turn it back on and hope
+   * the application has come to its senses (maybe it was just
+   * busy with a pagefault or a long computation).
+   */
+  window->disable_sync = FALSE;
+  window->sync_request_time.tv_sec = 0;
+  window->sync_request_time.tv_usec = 0;
+
+  /* This means we are ready for another configure. */
+  switch (window->display->grab_op)
+    {
+    case META_GRAB_OP_RESIZING_E:
+    case META_GRAB_OP_RESIZING_W:
+    case META_GRAB_OP_RESIZING_S:
+    case META_GRAB_OP_RESIZING_N:
+    case META_GRAB_OP_RESIZING_SE:
+    case META_GRAB_OP_RESIZING_SW:
+    case META_GRAB_OP_RESIZING_NE:
+    case META_GRAB_OP_RESIZING_NW:
+    case META_GRAB_OP_KEYBOARD_RESIZING_S:
+    case META_GRAB_OP_KEYBOARD_RESIZING_N:
+    case META_GRAB_OP_KEYBOARD_RESIZING_W:
+    case META_GRAB_OP_KEYBOARD_RESIZING_E:
+    case META_GRAB_OP_KEYBOARD_RESIZING_SE:
+    case META_GRAB_OP_KEYBOARD_RESIZING_NE:
+    case META_GRAB_OP_KEYBOARD_RESIZING_SW:
+    case META_GRAB_OP_KEYBOARD_RESIZING_NW:
+      /* no pointer round trip here, to keep in sync */
+      update_resize (window,
+                     window->display->grab_last_user_action_was_snap,
+                     window->display->grab_latest_motion_x,
+                     window->display->grab_latest_motion_y,
+                     TRUE);
+      break;
+
+    default:
+      break;
+    }
+}
+#endif /* HAVE_XSYNC */
+
 void
 meta_window_handle_mouse_grab_op_event (MetaWindow *window,
                                         XEvent     *event)
 {
-#ifdef HAVE_XSYNC
-  if (event->type == (window->display->xsync_event_base + XSyncAlarmNotify))
-    {
-      meta_topic (META_DEBUG_RESIZING,
-                  "Alarm event received last motion x = %d y = %d\n",
-                  window->display->grab_latest_motion_x,
-                  window->display->grab_latest_motion_y);
-
-      /* If sync was previously disabled, turn it back on and hope
-       * the application has come to its senses (maybe it was just
-       * busy with a pagefault or a long computation).
-       */
-      window->disable_sync = FALSE;
-      window->sync_request_time.tv_sec = 0;
-      window->sync_request_time.tv_usec = 0;
-
-      /* This means we are ready for another configure. */
-      switch (window->display->grab_op)
-        {
-        case META_GRAB_OP_RESIZING_E:
-        case META_GRAB_OP_RESIZING_W:
-        case META_GRAB_OP_RESIZING_S:
-        case META_GRAB_OP_RESIZING_N:
-        case META_GRAB_OP_RESIZING_SE:
-        case META_GRAB_OP_RESIZING_SW:
-        case META_GRAB_OP_RESIZING_NE:
-        case META_GRAB_OP_RESIZING_NW:
-        case META_GRAB_OP_KEYBOARD_RESIZING_S:
-        case META_GRAB_OP_KEYBOARD_RESIZING_N:
-        case META_GRAB_OP_KEYBOARD_RESIZING_W:
-        case META_GRAB_OP_KEYBOARD_RESIZING_E:
-        case META_GRAB_OP_KEYBOARD_RESIZING_SE:
-        case META_GRAB_OP_KEYBOARD_RESIZING_NE:
-        case META_GRAB_OP_KEYBOARD_RESIZING_SW:
-        case META_GRAB_OP_KEYBOARD_RESIZING_NW:
-          /* no pointer round trip here, to keep in sync */
-          update_resize (window,
-                         window->display->grab_last_user_action_was_snap,
-                         window->display->grab_latest_motion_x,
-                         window->display->grab_latest_motion_y,
-                         TRUE);
-          break;
-
-        default:
-          break;
-        }
-    }
-#endif /* HAVE_XSYNC */
-
   switch (event->type)
     {
     case ButtonRelease:
