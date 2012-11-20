@@ -3186,6 +3186,52 @@ alarm_state_to_string (XSyncAlarmState state)
 
 #ifdef WITH_VERBOSE_MODE
 static void
+meta_spew_xi2event (MetaDisplay *display,
+                    XIEvent     *xev,
+                    const char **name_p,
+                    char       **extra_p)
+{
+  const char *name = NULL;
+  char *extra = NULL;
+
+  switch (xev->evtype)
+    {
+    case XI_Motion:
+      name = "XI_Motion";
+      break;
+    case XI_ButtonPress:
+      name = "XI_ButtonPress";
+      break;
+    case XI_ButtonRelease:
+      name = "XI_ButtonRelease";
+      break;
+    case XI_KeyPress:
+      name = "XI_KeyPress";
+      break;
+    case XI_KeyRelease:
+      name = "XI_KeyRelease";
+      break;
+    case XI_FocusIn:
+      name = "XI_FocusIn";
+      break;
+    case XI_FocusOut:
+      name = "XI_FocusOut";
+      break;
+    case XI_Enter:
+      name = "XI_Enter";
+      break;
+    case XI_Leave:
+      name = "XI_Leave";
+      break;
+    }
+
+  /* TODO: extra */
+
+  *name_p = name;
+  *extra_p = extra;
+}
+
+static void
 meta_spew_event (MetaDisplay *display,
                  XEvent      *event)
 {
@@ -3204,6 +3250,14 @@ meta_spew_event (MetaDisplay *display,
 
   if (event->type == (display->damage_event_base + XDamageNotify))
     return;
+
+  if (event->type == GenericEvent &&
+      event->xcookie.extension == display->xinput2_opcode)
+    {
+      XIEvent *xev = (XIEvent *) event->xcookie.data;
+      meta_spew_xi2event (display, xev, &name, &extra);
+      goto spew;
+    }
 
   switch (event->type)
     {
@@ -3487,13 +3541,14 @@ meta_spew_event (MetaDisplay *display,
       break;
     }
 
+ spew:
   screen = meta_display_screen_for_root (display, event->xany.window);
       
   if (screen)
     winname = g_strdup_printf ("root %d", screen->number);
   else
     winname = g_strdup_printf ("0x%lx", event->xany.window);
-      
+
   meta_topic (META_DEBUG_EVENTS,
               "%s on %s%s %s %sserial %lu\n", name, winname,
               extra ? ":" : "", extra ? extra : "",
