@@ -53,6 +53,8 @@
 #include <meta/compositor-mutter.h>
 #include <X11/Xatom.h>
 #include <X11/cursorfont.h>
+#include "core.h"
+
 #include "mutter-enum-types.h"
 
 #ifdef HAVE_RANDR
@@ -73,10 +75,6 @@
 #include <X11/extensions/Xfixes.h>
 #include <string.h>
 #include <unistd.h>
-
-/* This is set in stone and also hard-coded in GDK. */
-#define VIRTUAL_CORE_POINTER_ID 2
-#define VIRTUAL_CORE_KEYBOARD_ID 3
 
 #define GRAB_OP_IS_WINDOW_SWITCH(g)                     \
         (g == META_GRAB_OP_KEYBOARD_TABBING_NORMAL  ||  \

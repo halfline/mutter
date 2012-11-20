@@ -29,6 +29,9 @@
 #include <gdk/gdkx.h>
 #include <meta/common.h>
 
+#define VIRTUAL_CORE_POINTER_ID 2
+#define VIRTUAL_CORE_KEYBOARD_ID 3
+
 typedef enum
 {
   META_CORE_GET_END = 0,

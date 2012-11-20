@@ -18,6 +18,7 @@
 #include "meta-background-actor-private.h"
 #include "window-private.h" /* to check window->hidden */
 #include "display-private.h" /* for meta_display_lookup_x_window() */
+#include "core.h"
 #include <X11/extensions/shape.h>
 #include <X11/extensions/Xcomposite.h>
 
@@ -358,14 +359,23 @@ meta_begin_modal_for_plugin (MetaScreen       *screen,
 
   if ((options & META_MODAL_POINTER_ALREADY_GRABBED) == 0)
     {
-      result = XGrabPointer (xdpy, grab_window,
-                             False, /* owner_events */
-                             (ButtonPressMask | ButtonReleaseMask |
-                              EnterWindowMask | LeaveWindowMask | PointerMotionMask),
-                             GrabModeAsync, GrabModeAsync,
-                             None, /* confine to */
+      unsigned char mask_bits[XIMaskLen (XI_LASTEVENT)] = { 0 };
+      XIEventMask mask = { XIAllMasterDevices, sizeof (mask_bits), mask_bits };
+
+      XISetMask (mask.mask, XI_ButtonPress);
+      XISetMask (mask.mask, XI_ButtonRelease);
+      XISetMask (mask.mask, XI_Enter);
+      XISetMask (mask.mask, XI_Leave);
+      XISetMask (mask.mask, XI_Motion);
+
+      result = XIGrabDevice (xdpy,
+                             VIRTUAL_CORE_POINTER_ID,
+                             grab_window,
+                             timestamp,
                              cursor,
-                             timestamp);
+                             GrabModeAsync, GrabModeAsync,
+                             False, /* owner_events */
+                             &mask);
       if (result != Success)
         goto fail;
 
@@ -374,10 +384,20 @@ meta_begin_modal_for_plugin (MetaScreen       *screen,
 
   if ((options & META_MODAL_KEYBOARD_ALREADY_GRABBED) == 0)
     {
-      result = XGrabKeyboard (xdpy, grab_window,
-                              False, /* owner_events */
-                              GrabModeAsync, GrabModeAsync,
-                              timestamp);
+      unsigned char mask_bits[XIMaskLen (XI_LASTEVENT)] = { 0 };
+      XIEventMask mask = { XIAllMasterDevices, sizeof (mask_bits), mask_bits };
+
+      XISetMask (mask.mask, XI_KeyPress);
+      XISetMask (mask.mask, XI_KeyRelease);
+
+      result = XIGrabDevice (xdpy,
+                             VIRTUAL_CORE_KEYBOARD_ID,
+                             grab_window,
+                             timestamp,
+                             None,
+                             GrabModeAsync, GrabModeAsync,
+                             False, /* owner_events */
+                             &mask);
 
       if (result != Success)
         goto fail;
@@ -397,9 +417,9 @@ meta_begin_modal_for_plugin (MetaScreen       *screen,
 
  fail:
   if (pointer_grabbed)
-    XUngrabPointer (xdpy, timestamp);
+    XIUngrabDevice (xdpy, VIRTUAL_CORE_POINTER_ID, timestamp);
   if (keyboard_grabbed)
-    XUngrabKeyboard (xdpy, timestamp);
+    XIUngrabDevice (xdpy, VIRTUAL_CORE_KEYBOARD_ID, timestamp);
 
   return FALSE;
 }
@@ -415,8 +435,8 @@ meta_end_modal_for_plugin (MetaScreen     *screen,
 
   g_return_if_fail (compositor->modal_plugin == plugin);
 
-  XUngrabPointer (xdpy, timestamp);
-  XUngrabKeyboard (xdpy, timestamp);
+  XIUngrabDevice (xdpy, VIRTUAL_CORE_POINTER_ID, timestamp);
+  XIUngrabDevice (xdpy, VIRTUAL_CORE_KEYBOARD_ID, timestamp);
 
   display->grab_op = META_GRAB_OP_NONE;
   display->grab_window = NULL;
