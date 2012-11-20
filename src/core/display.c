@@ -3716,27 +3716,36 @@ meta_display_set_grab_op_cursor (MetaDisplay *display,
     }
   else
     {
+      unsigned char mask_bits[XIMaskLen (XI_LASTEVENT)] = { 0 };
+      XIEventMask mask = { XIAllMasterDevices, sizeof (mask_bits), mask_bits };
+
+      XISetMask (mask.mask, XI_ButtonPress);
+      XISetMask (mask.mask, XI_ButtonRelease);
+      XISetMask (mask.mask, XI_Enter);
+      XISetMask (mask.mask, XI_Leave);
+      XISetMask (mask.mask, XI_Motion);
+
       g_assert (screen != NULL);
 
       meta_error_trap_push (display);
-      if (XGrabPointer (display->xdisplay,
+      if (XIGrabDevice (display->xdisplay,
+                        VIRTUAL_CORE_POINTER_ID,
                         grab_xwindow,
-                        False,
-                        GRAB_MASK,
-                        GrabModeAsync, GrabModeAsync,
-                        screen->xroot,
+                        timestamp,
                         cursor,
-                        timestamp) == GrabSuccess)
+                        GrabModeAsync, GrabModeAsync,
+                        False, /* owner_events */
+                        &mask) == Success)
         {
           display->grab_have_pointer = TRUE;
           meta_topic (META_DEBUG_WINDOW_OPS,
-                      "XGrabPointer() returned GrabSuccess time %u\n",
+                      "XIGrabDevice() returned GrabSuccess time %u\n",
                       timestamp);
         }
       else
         {
           meta_topic (META_DEBUG_WINDOW_OPS,
-                      "XGrabPointer() failed time %u\n",
+                      "XIGrabDevice() failed time %u\n",
                       timestamp);
         }
       meta_error_trap_pop (display);
@@ -3823,7 +3832,7 @@ meta_display_begin_grab_op (MetaDisplay *display,
   if (!display->grab_have_pointer && !grab_op_is_keyboard (op))
     {
       meta_topic (META_DEBUG_WINDOW_OPS,
-                  "XGrabPointer() failed\n");
+                  "XIGrabDevice() failed\n");
       return FALSE;
     }
 
@@ -3842,7 +3851,7 @@ meta_display_begin_grab_op (MetaDisplay *display,
         {
           meta_topic (META_DEBUG_WINDOW_OPS,
                       "grabbing all keys failed, ungrabbing pointer\n");
-          XUngrabPointer (display->xdisplay, timestamp);
+          XIUngrabDevice (display->xdisplay, VIRTUAL_CORE_POINTER_ID, timestamp);
           display->grab_have_pointer = FALSE;
           return FALSE;
         }
