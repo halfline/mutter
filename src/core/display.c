@@ -75,6 +75,7 @@
 #include <unistd.h>
 
 /* This is set in stone and also hard-coded in GDK. */
+#define VIRTUAL_CORE_POINTER_ID 2
 #define VIRTUAL_CORE_KEYBOARD_ID 3
 
 #define GRAB_OP_IS_WINDOW_SWITCH(g)                     \
@@ -1804,19 +1805,27 @@ get_input_event (MetaDisplay *display,
       event->xcookie.extension == display->xinput2_opcode)
     {
       XIEvent *xev;
+      XIDeviceEvent *xev_d;
 
       /* NB: GDK event filters already have generic events
        * allocated, so no need to do XGetEventData() on our own
        */
       xev = (XIEvent *) event->xcookie.data;
+      xev_d = (XIDeviceEvent *) xev;
 
       switch (xev->evtype)
         {
         case XI_Motion:
         case XI_ButtonPress:
         case XI_ButtonRelease:
+          if (xev_d->deviceid == VIRTUAL_CORE_POINTER_ID)
+            return xev;
+          break;
         case XI_KeyPress:
         case XI_KeyRelease:
+          if (xev_d->deviceid == VIRTUAL_CORE_KEYBOARD_ID)
+            return xev;
+          break;
         case XI_FocusIn:
         case XI_FocusOut:
         case XI_Enter:
