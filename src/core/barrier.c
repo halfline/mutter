@@ -131,9 +131,10 @@ meta_barrier_dispose (GObject *object)
 
   if (meta_barrier_is_active (barrier))
     {
-      meta_bug ("MetaBarrier wrapper %p for X barrier %ld was destroyed"
-                " while the X barrier is still active.",
-                barrier, priv->barrier);
+      /* XXX -- not sure what to do here. */
+      meta_warning ("MetaBarrier wrapper %p for X barrier %ld was destroyed"
+                    " while the X barrier is still active.\n",
+                    barrier, priv->barrier);
     }
 
   G_OBJECT_CLASS (meta_barrier_parent_class)->dispose (object);
