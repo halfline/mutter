@@ -312,10 +312,10 @@ set_wm_icon_size_hint (MetaScreen *screen)
   gulong vals[N_VALS];
 
   /* min width, min height, max w, max h, width inc, height inc */
-  vals[0] = META_ICON_WIDTH;
-  vals[1] = META_ICON_HEIGHT;
-  vals[2] = META_ICON_WIDTH;
-  vals[3] = META_ICON_HEIGHT;
+  vals[0] = 32;
+  vals[1] = 32;
+  vals[2] = 32;
+  vals[3] = 32;
   vals[4] = 0;
   vals[5] = 0;
   
