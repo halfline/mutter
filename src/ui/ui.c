@@ -216,6 +216,10 @@ maybe_redirect_mouse_event (XEvent *xevent)
       gevent = gdk_event_new (GDK_MOTION_NOTIFY);
       gevent->motion.type = GDK_MOTION_NOTIFY;
       gevent->motion.window = g_object_ref (gdk_window);
+      gevent->motion.x = xev_d->event_x;
+      gevent->motion.y = xev_d->event_y;
+      gevent->motion.x_root = xev_d->root_x;
+      gevent->motion.y_root = xev_d->root_y;
       break;
     case XI_Enter:
     case XI_Leave:
