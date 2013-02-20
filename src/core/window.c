@@ -24,6 +24,8 @@
  * 02111-1307, USA.
  */
 
+#define _SVID_SOURCE /* for gethostname() */
+
 #include <config.h>
 #include "window-private.h"
 #include "boxes-private.h"
@@ -49,6 +51,12 @@
 #include <X11/Xlibint.h> /* For display->resource_mask */
 #include <string.h>
 #include <math.h>
+#include <unistd.h>
+
+#ifndef HOST_NAME_MAX
+/* Solaris headers apparently don't define this so do so manually; #326745 */
+#define HOST_NAME_MAX 255
+#endif
 
 #ifdef HAVE_SHAPE
 #include <X11/extensions/shape.h>
@@ -10535,11 +10543,16 @@ meta_window_get_client_machine (MetaWindow *window)
 gboolean
 meta_window_is_remote (MetaWindow *window)
 {
+  char hostname[HOST_NAME_MAX + 1] = "";
+
   g_return_val_if_fail (META_IS_WINDOW (window), FALSE);
 
-  if (window->wm_client_machine != NULL)
-    return g_strcmp0 (window->wm_client_machine, window->display->hostname) != 0;
-  return FALSE;
+  if (window->wm_client_machine == NULL)
+      return FALSE;
+
+  gethostname (hostname, HOST_NAME_MAX + 1);
+
+  return g_strcmp0 (window->wm_client_machine, hostname) != 0;
 }
 
 /**
