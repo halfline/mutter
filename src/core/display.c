@@ -391,8 +391,6 @@ sn_error_trap_pop (SnDisplay *sn_display,
 static void
 enable_compositor (MetaDisplay *display)
 {
-  GSList *list;
-
   if (!META_DISPLAY_HAS_COMPOSITE (display) ||
       !META_DISPLAY_HAS_DAMAGE (display) ||
       !META_DISPLAY_HAS_RENDER (display))
@@ -408,14 +406,8 @@ enable_compositor (MetaDisplay *display)
 
   if (!display->compositor)
     return;
-  
-  for (list = display->screens; list != NULL; list = list->next)
-    {
-      MetaScreen *screen = list->data;
-      
-      meta_compositor_manage_screen (screen->display->compositor,
-				     screen);
-    }
+
+  meta_compositor_manage_screen (display->compositor, display->screen);
 }
 
 static void
@@ -469,7 +461,6 @@ gboolean
 meta_display_open (void)
 {
   Display *xdisplay;
-  GSList *screens;
   MetaScreen *screen;
   int i;
   guint32 timestamp;
@@ -568,8 +559,7 @@ meta_display_open (void)
   the_display->window_with_menu = NULL;
   the_display->window_menu = NULL;
   
-  the_display->screens = NULL;
-  the_display->active_screen = NULL;
+  the_display->screen = NULL;
   
 #ifdef HAVE_STARTUP_NOTIFICATION
   the_display->sn_display = sn_display_new (the_display->xdisplay,
@@ -879,15 +869,12 @@ meta_display_open (void)
   the_display->last_focus_time = timestamp;
   the_display->last_user_time = timestamp;
   the_display->compositor = NULL;
-  
+
   /* Mutter used to manage all X screens of the display in a single process, but
    * now it always manages exactly one screen as specified by the DISPLAY
-   * environment variable. The screens GSList is left for simplicity.
+   * environment variable.
    */
-  screens = NULL;
-
   i = meta_ui_get_screen_number ();
-
   screen = meta_screen_new (the_display, i, timestamp);
 
   if (!screen)
@@ -899,9 +886,7 @@ meta_display_open (void)
       return FALSE;
     }
 
-  screens = g_slist_prepend (screens, screen);
-
-  the_display->screens = screens;
+  the_display->screen = screen;
 
   enable_compositor (the_display);
 
@@ -933,7 +918,7 @@ meta_display_open (void)
     if (focus == None || focus == PointerRoot)
       /* Just focus the no_focus_window on the first screen */
       meta_display_focus_the_no_focus_window (the_display,
-                                              the_display->screens->data,
+                                              the_display->screen,
                                               timestamp);
     else
       {
@@ -944,7 +929,7 @@ meta_display_open (void)
         else
           /* Just focus the no_focus_window on the first screen */
           meta_display_focus_the_no_focus_window (the_display,
-                                                  the_display->screens->data,
+                                                  the_display->screen,
                                                   timestamp);
       }
 
@@ -986,8 +971,8 @@ meta_display_list_windows (MetaDisplay          *display,
                            MetaListWindowsFlags  flags)
 {
   GSList *winlist;
-  GSList *tmp;
   GSList *prev;
+  GSList *tmp;
   GHashTableIter iter;
   gpointer key, value;
 
@@ -1062,8 +1047,6 @@ void
 meta_display_close (MetaDisplay *display,
                     guint32      timestamp)
 {
-  GSList *tmp;
-
   g_assert (display != NULL);
 
   if (display->closing != 0)
@@ -1095,17 +1078,7 @@ meta_display_close (MetaDisplay *display,
   clutter_event_remove_filter (display->clutter_event_filter);
   display->clutter_event_filter = 0;
   
-  /* Free all screens */
-  tmp = display->screens;
-  while (tmp != NULL)
-    {
-      MetaScreen *screen = tmp->data;
-      meta_screen_free (screen, timestamp);
-      tmp = tmp->next;
-    }
-
-  g_slist_free (display->screens);
-  display->screens = NULL;
+  meta_screen_free (display->screen, timestamp);
 
 #ifdef HAVE_STARTUP_NOTIFICATION
   if (display->sn_display)
@@ -1139,77 +1112,6 @@ meta_display_close (MetaDisplay *display,
   the_display = NULL;
 
   meta_quit (META_EXIT_SUCCESS);
-}
-
-/**
- * meta_display_screen_for_root:
- * @display: a #MetaDisplay
- * @xroot: a X window
- *
- * Return the #MetaScreen corresponding to a specified X root window ID.
- *
- * Return Value: (transfer none): the screen for the specified root window ID, or %NULL
- */
-MetaScreen*
-meta_display_screen_for_root (MetaDisplay *display,
-                              Window       xroot)
-{
-  GSList *tmp;
-
-  tmp = display->screens;
-  while (tmp != NULL)
-    {
-      MetaScreen *screen = tmp->data;
-
-      if (xroot == screen->xroot)
-        return screen;
-
-      tmp = tmp->next;
-    }
-
-  return NULL;
-}
-
-MetaScreen*
-meta_display_screen_for_xwindow (MetaDisplay *display,
-                                 Window       xwindow)
-{
-  XWindowAttributes attr;
-  int result;
-  
-  meta_error_trap_push (display);
-  attr.screen = NULL;
-  result = XGetWindowAttributes (display->xdisplay, xwindow, &attr);
-  meta_error_trap_pop (display);
-
-  /* Note, XGetWindowAttributes is on all kinds of crack
-   * and returns 1 on success 0 on failure, rather than Success
-   * on success.
-   */
-  if (result == 0 || attr.screen == NULL)
-    return NULL;
-  
-  return meta_display_screen_for_x_screen (display, attr.screen);
-}
-
-MetaScreen*
-meta_display_screen_for_x_screen (MetaDisplay *display,
-                                  Screen      *xscreen)
-{
-  GSList *tmp;
-
-  tmp = display->screens;
-  while (tmp != NULL)
-    {
-      MetaScreen *screen = tmp->data;
-
-      if (xscreen == screen->xscreen)
-        return screen;
-
-      tmp = tmp->next;
-    }
-
-  return NULL;
 }
 
 /* Grab/ungrab routines taken from fvwm.
@@ -1884,7 +1786,6 @@ request_xserver_input_focus_change (MetaDisplay *display,
   meta_error_trap_pop (display);
 
   display->last_focus_time = timestamp;
-  display->active_screen = screen;
 
   if (meta_window == NULL || meta_window != display->autoraise_window)
     meta_display_remove_autoraise_callback (display);
@@ -1914,7 +1815,7 @@ handle_window_focus_event (MetaDisplay  *display,
     }
   else if (meta_display_xwindow_is_a_no_focus_window (display, event->event))
     window_type = "no_focus_window";
-  else if (meta_display_screen_for_root (display, event->event))
+  else if (event->event == display->screen->xroot)
     window_type = "root window";
   else
     window_type = "unknown window";
@@ -2305,7 +2206,6 @@ handle_input_xevent (MetaDisplay *display,
   XIEnterEvent *enter_event = (XIEnterEvent *) input_event;
   Window modified;
   MetaWindow *window;
-  MetaScreen *screen;
 
   if (input_event == NULL)
     return FALSE;
@@ -2318,20 +2218,6 @@ handle_input_xevent (MetaDisplay *display,
     case XI_Enter:
       if (display->grab_op == META_GRAB_OP_COMPOSITOR)
         break;
-
-      /* If the mouse switches screens, active the default window on the new
-       * screen; this will make keybindings and workspace-launched items
-       * actually appear on the right screen.
-       */
-      {
-        MetaScreen *new_screen =
-          meta_display_screen_for_root (display, enter_event->root);
-
-        if (new_screen != NULL && display->active_screen != new_screen)
-          meta_workspace_focus_default_window (new_screen->active_workspace,
-                                               NULL,
-                                               enter_event->time);
-      }
 
       /* Check if we've entered a window; do this even if window->has_focus to
        * avoid races.
@@ -2370,10 +2256,8 @@ handle_input_xevent (MetaDisplay *display,
       if (!window)
         {
           /* Check if the window is a root window. */
-          if (enter_event->root != enter_event->event)
+          if (enter_event->event != enter_event->root)
             break;
-
-          screen = meta_display_screen_for_root (display, enter_event->root);
 
           if (enter_event->evtype == XI_FocusIn &&
               enter_event->mode == XINotifyDetailNone)
@@ -2382,7 +2266,7 @@ handle_input_xevent (MetaDisplay *display,
                           "Focus got set to None, probably due to "
                           "brain-damage in the X protocol (see bug "
                           "125492).  Setting the default focus window.\n");
-              meta_workspace_focus_default_window (screen->active_workspace,
+              meta_workspace_focus_default_window (display->screen->active_workspace,
                                                    NULL,
                                                    meta_display_get_current_time_roundtrip (display));
             }
@@ -2394,7 +2278,7 @@ handle_input_xevent (MetaDisplay *display,
                           "Focus got set to root window, probably due to "
                           "gnome-session logout dialog usage (see bug "
                           "153220).  Setting the default focus window.\n");
-              meta_workspace_focus_default_window (screen->active_workspace,
+              meta_workspace_focus_default_window (display->screen->active_workspace,
                                                    NULL,
                                                    meta_display_get_current_time_roundtrip (display));
             }
@@ -2530,25 +2414,17 @@ handle_other_xevent (MetaDisplay *display,
       break;
     case CreateNotify:
       {
-        MetaScreen *screen;
-
-        screen = meta_display_screen_for_root (display,
-                                               event->xcreatewindow.parent);
-        if (screen)
-          meta_stack_tracker_create_event (screen->stack_tracker,
-                                           &event->xcreatewindow);
+        MetaScreen *screen = display->screen;
+        meta_stack_tracker_create_event (screen->stack_tracker,
+                                         &event->xcreatewindow);
       }
       break;
 
     case DestroyNotify:
       {
-        MetaScreen *screen;
-
-        screen = meta_display_screen_for_root (display,
-                                               event->xdestroywindow.event);
-        if (screen)
-          meta_stack_tracker_destroy_event (screen->stack_tracker,
-                                            &event->xdestroywindow);
+        MetaScreen *screen = display->screen;
+        meta_stack_tracker_destroy_event (screen->stack_tracker,
+                                          &event->xdestroywindow);
       }
       if (window)
         {
@@ -2621,8 +2497,7 @@ handle_other_xevent (MetaDisplay *display,
       /* NB: override redirect windows wont cause a map request so we
        * watch out for map notifies against any root windows too if a
        * compositor is enabled: */
-      if (window == NULL
-          && meta_display_screen_for_root (display, event->xmap.event))
+      if (window == NULL && event->xmap.event == display->screen->xroot)
         {
           window = meta_window_x11_new (display, event->xmap.window,
                                         FALSE, META_COMP_EFFECT_CREATE);
@@ -2654,25 +2529,17 @@ handle_other_xevent (MetaDisplay *display,
       break;
     case ReparentNotify:
       {
-        MetaScreen *screen;
-
-        screen = meta_display_screen_for_root (display,
-                                               event->xconfigure.event);
-        if (screen)
-          meta_stack_tracker_reparent_event (screen->stack_tracker,
-                                             &event->xreparent);
+        MetaScreen *screen = display->screen;
+        meta_stack_tracker_reparent_event (screen->stack_tracker,
+                                           &event->xreparent);
       }
       break;
     case ConfigureNotify:
       if (event->xconfigure.event != event->xconfigure.window)
         {
-          MetaScreen *screen;
-
-          screen = meta_display_screen_for_root (display,
-                                                 event->xconfigure.event);
-          if (screen)
-            meta_stack_tracker_configure_event (screen->stack_tracker,
-                                                &event->xconfigure);
+          MetaScreen *screen = display->screen;
+          meta_stack_tracker_configure_event (screen->stack_tracker,
+                                              &event->xconfigure);
         }
 
       if (window && window->override_redirect)
@@ -2725,7 +2592,6 @@ handle_other_xevent (MetaDisplay *display,
     case PropertyNotify:
       {
         MetaGroup *group;
-        MetaScreen *screen;
 
         if (window && !frame_was_receiver)
           meta_window_x11_property_notify (window, event);
@@ -2737,24 +2603,18 @@ handle_other_xevent (MetaDisplay *display,
         if (group != NULL)
           meta_group_property_notify (group, event);
 
-        screen = NULL;
-        if (window == NULL &&
-            group == NULL) /* window/group != NULL means it wasn't a root window */
-          screen = meta_display_screen_for_root (display,
-                                                 event->xproperty.window);
-
-        if (screen != NULL)
+        if (event->xproperty.window == display->screen->xroot)
           {
             if (event->xproperty.atom ==
                 display->atom__NET_DESKTOP_LAYOUT)
-              meta_screen_update_workspace_layout (screen);
+              meta_screen_update_workspace_layout (display->screen);
             else if (event->xproperty.atom ==
                      display->atom__NET_DESKTOP_NAMES)
-              meta_screen_update_workspace_names (screen);
+              meta_screen_update_workspace_names (display->screen);
             else if (meta_is_wayland_compositor () &&
                      event->xproperty.atom ==
                      display->atom__XKB_RULES_NAMES)
-              reload_xkb_rules (screen);
+              reload_xkb_rules (display->screen);
 #if 0
             else if (event->xproperty.atom ==
                      display->atom__NET_RESTACK_WINDOW)
@@ -2805,12 +2665,9 @@ handle_other_xevent (MetaDisplay *display,
         }
       else
         {
-          MetaScreen *screen;
+          MetaScreen *screen = display->screen;
 
-          screen = meta_display_screen_for_root (display,
-                                                 event->xclient.window);
-
-          if (screen)
+          if (event->xclient.window == screen->xroot)
             {
               if (event->xclient.message_type ==
                   display->atom__NET_CURRENT_DESKTOP)
@@ -2986,7 +2843,6 @@ meta_display_handle_xevent (MetaDisplay *display,
   gboolean bypass_compositor = FALSE, bypass_gtk = FALSE;
   XIEvent *input_event;
   MetaMonitorManager *monitor;
-  MetaScreen *screen;
 
 #if 0
   meta_spew_event (display, event);
@@ -3024,14 +2880,10 @@ meta_display_handle_xevent (MetaDisplay *display,
                            FALSE);
     }
 
-  screen = meta_display_screen_for_root (display, event->xany.window);
-  if (screen)
+  if (meta_screen_handle_xevent (display->screen, event))
     {
-      if (meta_screen_handle_xevent (screen, event))
-        {
-          bypass_gtk = bypass_compositor = TRUE;
-          goto out;
-        }
+      bypass_gtk = bypass_compositor = TRUE;
+      goto out;
     }
 
   modified = event_get_modified_window (display, event);
@@ -3665,7 +3517,6 @@ meta_spew_event (MetaDisplay *display,
   const char *name = NULL;
   char *extra = NULL;
   char *winname;
-  MetaScreen *screen;
   XIEvent *input_event;
   
   /* filter overnumerous events */
@@ -3689,12 +3540,7 @@ meta_spew_event (MetaDisplay *display,
   else
     meta_spew_core_event (display, event, &name, &extra);
 
-  screen = meta_display_screen_for_root (display, event->xany.window);
-      
-  if (screen)
-    winname = g_strdup_printf ("root %d", screen->number);
-  else
-    winname = g_strdup_printf ("0x%lx", event->xany.window);
+  winname = g_strdup_printf ("0x%lx", event->xany.window);
 
   g_print ("%s on %s%s %s %sserial %lu\n", name, winname,
            extra ? ":" : "", extra ? extra : "",
@@ -3803,18 +3649,7 @@ gboolean
 meta_display_xwindow_is_a_no_focus_window (MetaDisplay *display,
                                            Window xwindow)
 {
-  gboolean is_a_no_focus_window = FALSE;
-  GSList *temp = display->screens;
-  while (temp != NULL) {
-    MetaScreen *screen = temp->data;
-    if (screen->no_focus_window == xwindow) {
-      is_a_no_focus_window = TRUE;
-      break;
-    }
-    temp = temp->next;
-  }
-
-  return is_a_no_focus_window;
+  return xwindow == display->screen->no_focus_window;
 }
 
 static MetaCursor
@@ -4437,30 +4272,19 @@ meta_display_increment_event_serial (MetaDisplay *display)
 void
 meta_display_update_active_window_hint (MetaDisplay *display)
 {
-  GSList *tmp;
-  
   gulong data[1];
 
   if (display->focus_window)
     data[0] = display->focus_window->xwindow;
   else
     data[0] = None;
-  
-  tmp = display->screens;
-  while (tmp != NULL)
-    {
-      MetaScreen *screen = tmp->data;
-      
-      meta_error_trap_push (display);
-      XChangeProperty (display->xdisplay, screen->xroot,
-                       display->atom__NET_ACTIVE_WINDOW,
-                       XA_WINDOW,
-                       32, PropModeReplace, (guchar*) data, 1);
 
-      meta_error_trap_pop (display);
-
-      tmp = tmp->next;
-    }
+  meta_error_trap_push (display);
+  XChangeProperty (display->xdisplay, display->screen->xroot,
+                   display->atom__NET_ACTIVE_WINDOW,
+                   XA_WINDOW,
+                   32, PropModeReplace, (guchar*) data, 1);
+  meta_error_trap_pop (display);
 }
 
 void
@@ -4498,22 +4322,12 @@ void
 meta_display_set_cursor_theme (const char *theme, 
 			       int         size)
 {
-  GSList *tmp;
-
   MetaDisplay *display = meta_get_display ();
 
   XcursorSetTheme (display->xdisplay, theme);
   XcursorSetDefaultSize (display->xdisplay, size);
 
-  tmp = display->screens;
-  while (tmp != NULL)
-    {
-      MetaScreen *screen = tmp->data;
-	  	  
-      meta_screen_update_cursor (screen);
-
-      tmp = tmp->next;
-    }
+  meta_screen_update_cursor (display->screen);
 }
 
 /*
@@ -4687,21 +4501,9 @@ process_request_frame_extents (MetaDisplay    *display,
   if ((hints_set && hints->decorations) || !hints_set)
     {
       MetaFrameBorders borders;
-      MetaScreen *screen;
-
-      screen = meta_display_screen_for_xwindow (display,
-                                                event->xclient.window);
-      if (screen == NULL)
-        {
-          meta_warning ("Received request to set _NET_FRAME_EXTENTS "
-                        "on 0x%lx which is on a screen we are not managing\n",
-                        event->xclient.window);
-          meta_XFree (hints);
-          return;
-        }
 
       /* Return estimated frame extents for a normal window. */
-      meta_ui_theme_get_frame_borders (screen->ui,
+      meta_ui_theme_get_frame_borders (display->screen->ui,
                                        META_FRAME_TYPE_NORMAL,
                                        0,
                                        &borders);
@@ -4793,7 +4595,6 @@ get_focussed_group (MetaDisplay *display)
 static MetaWindow*
 find_tab_forward (MetaDisplay   *display,
                   MetaTabList    type,
-                  MetaScreen    *screen, 
                   MetaWorkspace *workspace,
                   GList         *start,
                   gboolean       skip_first)
@@ -4811,8 +4612,7 @@ find_tab_forward (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (window->screen == screen &&
-	  IN_TAB_CHAIN (window, type))
+      if (IN_TAB_CHAIN (window, type))
         return window;
 
       tmp = tmp->next;
@@ -4835,7 +4635,6 @@ find_tab_forward (MetaDisplay   *display,
 static MetaWindow*
 find_tab_backward (MetaDisplay   *display,
                    MetaTabList    type,
-                   MetaScreen    *screen, 
                    MetaWorkspace *workspace,
                    GList         *start,
                    gboolean       skip_last)
@@ -4852,8 +4651,7 @@ find_tab_backward (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (window->screen == screen &&
-	  IN_TAB_CHAIN (window, type))
+      if (IN_TAB_CHAIN (window, type))
         return window;
 
       tmp = tmp->prev;
@@ -4894,21 +4692,19 @@ mru_cmp (gconstpointer a,
  * meta_display_get_tab_list:
  * @display: a #MetaDisplay
  * @type: type of tab list
- * @screen: a #MetaScreen
  * @workspace: (allow-none): origin workspace
  *
  * Determine the list of windows that should be displayed for Alt-TAB
  * functionality.  The windows are returned in most recently used order.
  * If @workspace is not %NULL, the list only conains windows that are on
  * @workspace or have the demands-attention hint set; otherwise it contains
- * all windows on @screen.
+ * all windows.
  *
  * Returns: (transfer container) (element-type Meta.Window): List of windows
  */
 GList*
 meta_display_get_tab_list (MetaDisplay   *display,
                            MetaTabList    type,
-                           MetaScreen    *screen,
                            MetaWorkspace *workspace)
 {
   GList *tab_list = NULL;
@@ -4933,8 +4729,7 @@ meta_display_get_tab_list (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (window->screen == screen &&
-          IN_TAB_CHAIN (window, type))
+      if (IN_TAB_CHAIN (window, type))
         tab_list = g_list_prepend (tab_list, window);
     }
 
@@ -4964,7 +4759,6 @@ meta_display_get_tab_list (MetaDisplay   *display,
  * meta_display_get_tab_next:
  * @display: a #MetaDisplay
  * @type: type of tab list
- * @screen: a #MetaScreen
  * @workspace: origin workspace
  * @window: (allow-none): starting window 
  * @backward: If %TRUE, look for the previous window.  
@@ -4978,7 +4772,6 @@ meta_display_get_tab_list (MetaDisplay   *display,
 MetaWindow*
 meta_display_get_tab_next (MetaDisplay   *display,
                            MetaTabList    type,
-                           MetaScreen    *screen,
                            MetaWorkspace *workspace,
                            MetaWindow    *window,
                            gboolean       backward)
@@ -4986,10 +4779,7 @@ meta_display_get_tab_next (MetaDisplay   *display,
   gboolean skip;
   GList *tab_list;
   MetaWindow *ret;
-  tab_list = meta_display_get_tab_list(display,
-                                       type,
-                                       screen,
-                                       workspace);
+  tab_list = meta_display_get_tab_list (display, type, workspace);
 
   if (tab_list == NULL)
     return NULL;
@@ -4999,26 +4789,18 @@ meta_display_get_tab_next (MetaDisplay   *display,
       g_assert (window->display == display);
       
       if (backward)
-        ret = find_tab_backward (display, type, screen, workspace,
-                                 g_list_find (tab_list,
-                                              window),
-                                 TRUE);
+        ret = find_tab_backward (display, type, workspace, g_list_find (tab_list, window), TRUE);
       else
-        ret = find_tab_forward (display, type, screen, workspace,
-                                g_list_find (tab_list,
-                                             window),
-                                TRUE);
+        ret = find_tab_forward (display, type, workspace, g_list_find (tab_list, window), TRUE);
     }
   else
     {
       skip = display->focus_window != NULL && 
              tab_list->data == display->focus_window;
       if (backward)
-        ret = find_tab_backward (display, type, screen, workspace,
-                                 tab_list, skip);
+        ret = find_tab_backward (display, type, workspace, tab_list, skip);
       else
-        ret = find_tab_forward (display, type, screen, workspace,
-                                tab_list, skip);
+        ret = find_tab_forward (display, type, workspace, tab_list, skip);
     }
 
   g_list_free (tab_list);
@@ -5029,7 +4811,6 @@ meta_display_get_tab_next (MetaDisplay   *display,
  * meta_display_get_tab_current:
  * @display: a #MetaDisplay
  * @type: type of tab list
- * @screen: a #MetaScreen
  * @workspace: origin workspace
  *
  * Determine the active window that should be displayed for Alt-TAB.
@@ -5040,7 +4821,6 @@ meta_display_get_tab_next (MetaDisplay   *display,
 MetaWindow*
 meta_display_get_tab_current (MetaDisplay   *display,
                               MetaTabList    type,
-                              MetaScreen    *screen,
                               MetaWorkspace *workspace)
 {
   MetaWindow *window;
@@ -5048,7 +4828,6 @@ meta_display_get_tab_current (MetaDisplay   *display,
   window = display->focus_window;
   
   if (window != NULL &&
-      window->screen == screen &&
       IN_TAB_CHAIN (window, type) &&
       (workspace == NULL ||
        meta_window_located_on_workspace (window, workspace)))
@@ -5107,32 +4886,20 @@ meta_resize_gravity_from_grab_op (MetaGrabOp op)
   return gravity;
 }
 
-static MetaScreen*
-find_screen_for_selection (MetaDisplay *display,
-                           Window       owner,
-                           Atom         selection)
-{  
-  GSList *tmp;  
-  
-  tmp = display->screens;
-  while (tmp != NULL)
-    {
-      MetaScreen *screen = tmp->data;
-      
-      if (screen->wm_sn_selection_window == owner &&
-          screen->wm_sn_atom == selection)
-        return screen;
-  
-      tmp = tmp->next;
-    }
+static gboolean
+selection_has_our_screen (MetaDisplay *display,
+                          XEvent      *event)
+{
+  MetaScreen *screen = display->screen;
+  Window owner = event->xselectionrequest.owner;
+  Atom selection = event->xselectionrequest.selection;
 
-  return NULL;
+  return (screen->wm_sn_selection_window == owner && screen->wm_sn_atom == selection);
 }
 
 /* from fvwm2, Copyright Matthias Clasen, Dominik Vogt */
 static gboolean
 convert_property (MetaDisplay *display,
-                  MetaScreen  *screen,
                   Window       w,
                   Atom         target,
                   Atom         property)
@@ -5154,7 +4921,7 @@ convert_property (MetaDisplay *display,
   else if (target == display->atom_TIMESTAMP)
     XChangeProperty (display->xdisplay, w, property,
 		     XA_INTEGER, 32, PropModeReplace,
-		     (unsigned char *)&screen->wm_sn_timestamp, 1);
+		     (unsigned char *)&display->screen->wm_sn_timestamp, 1);
   else if (target == display->atom_VERSION)
     XChangeProperty (display->xdisplay, w, property,
 		     XA_INTEGER, 32, PropModeReplace,
@@ -5184,13 +4951,8 @@ process_selection_request (MetaDisplay   *display,
                            XEvent        *event)
 {
   XSelectionEvent reply;
-  MetaScreen *screen;
 
-  screen = find_screen_for_selection (display,
-                                      event->xselectionrequest.owner,
-                                      event->xselectionrequest.selection);
-
-  if (screen == NULL)
+  if (!selection_has_our_screen (display, event))
     {
       char *str;
       
@@ -5245,7 +5007,7 @@ process_selection_request (MetaDisplay   *display,
               i = 0;
               while (i < (int) num)
                 {
-                  if (!convert_property (display, screen,
+                  if (!convert_property (display,
                                          event->xselectionrequest.requestor,
                                          adata[i], adata[i+1]))
                     adata[i+1] = None;
@@ -5268,7 +5030,7 @@ process_selection_request (MetaDisplay   *display,
       if (event->xselectionrequest.property == None)
         event->xselectionrequest.property = event->xselectionrequest.target;
       
-      if (convert_property (display, screen,
+      if (convert_property (display,
                             event->xselectionrequest.requestor,
                             event->xselectionrequest.target,
                             event->xselectionrequest.property))
@@ -5286,21 +5048,9 @@ static void
 process_selection_clear (MetaDisplay   *display,
                          XEvent        *event)
 {
-  /* We need to unmanage the screen on which we lost the selection */
-  MetaScreen *screen;
-
-  screen = find_screen_for_selection (display,
-                                      event->xselectionclear.window,
-                                      event->xselectionclear.selection);
-  
-
-  if (screen != NULL)
+  if (selection_has_our_screen (display, event))
     {
-      meta_verbose ("Got selection clear for screen %d on display %s\n",
-                    screen->number, display->name);
-      
-      meta_display_unmanage_screen (display, 
-                                    screen,
+      meta_display_unmanage_screen (display, display->screen,
                                     event->xselectionclear.time);
 
       /* display and screen may both be invalid memory... */
@@ -5330,14 +5080,9 @@ meta_display_unmanage_screen (MetaDisplay *display,
 {
   meta_verbose ("Unmanaging screen %d on display %s\n",
                 screen->number, display->name);
-  
-  g_return_if_fail (g_slist_find (display->screens, screen) != NULL);
-  
-  meta_screen_free (screen, timestamp);
-  display->screens = g_slist_remove (display->screens, screen);
 
-  if (display->screens == NULL)
-    meta_display_close (display, timestamp);
+  meta_screen_free (screen, timestamp);
+  meta_display_close (display, timestamp);
 }
 
 void
@@ -5379,15 +5124,7 @@ meta_display_stack_cmp (const void *a,
   MetaWindow *aw = (void*) a;
   MetaWindow *bw = (void*) b;
 
-  if (aw->screen == bw->screen)
-    return meta_stack_windows_cmp (aw->screen->stack, aw, bw);
-  /* Then assume screens are stacked by number */
-  else if (aw->screen->number < bw->screen->number)
-    return -1;
-  else if (aw->screen->number > bw->screen->number)
-    return 1;
-  else
-    return 0; /* not reached in theory, if windows on same display */
+  return meta_stack_windows_cmp (aw->screen->stack, aw, bw);
 }
 
 /**
@@ -5523,7 +5260,7 @@ meta_display_increment_focus_sentinel (MetaDisplay *display)
   data[0] = meta_display_get_current_time (display);
   
   XChangeProperty (display->xdisplay,
-                   ((MetaScreen*) display->screens->data)->xroot,
+                   display->screen->xroot,
                    display->atom__MUTTER_SENTINEL,
                    XA_CARDINAL,
                    32, PropModeReplace, (guchar*) data, 1);
@@ -5741,18 +5478,6 @@ MetaCompositor *
 meta_display_get_compositor (MetaDisplay *display)
 {
   return display->compositor;
-}
-
-/**
- * meta_display_get_screens:
- * @display: a #MetaDisplay
- *
- * Returns: (transfer none) (element-type Meta.Screen): Screens for this display
- */
-GSList *
-meta_display_get_screens (MetaDisplay *display)
-{
-  return display->screens;
 }
 
 gboolean
