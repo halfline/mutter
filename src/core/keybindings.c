@@ -1654,7 +1654,7 @@ process_event (MetaDisplay          *display,
                                     event->modifier_state);
   if (!binding ||
       (!window && binding->flags & META_KEY_BINDING_PER_WINDOW) ||
-      meta_compositor_filter_keybinding (display->compositor, screen, binding))
+      meta_compositor_filter_keybinding (display->compositor, binding))
     goto not_found;
 
   if (binding->handler == NULL)
@@ -1739,7 +1739,7 @@ process_overlay_key (MetaDisplay *display,
                                             display->overlay_key_combo.keycode,
                                             display->grab_mask);
           if (binding &&
-              meta_compositor_filter_keybinding (display->compositor, screen, binding))
+              meta_compositor_filter_keybinding (display->compositor, binding))
             return TRUE;
           meta_display_overlay_key_activate (display);
         }

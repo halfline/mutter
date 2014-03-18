@@ -407,7 +407,7 @@ enable_compositor (MetaDisplay *display)
   if (!display->compositor)
     return;
 
-  meta_compositor_manage_screen (display->compositor, display->screen);
+  meta_compositor_manage (display->compositor);
 }
 
 static void
