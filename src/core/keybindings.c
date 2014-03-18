@@ -1866,8 +1866,7 @@ meta_display_process_key_event (MetaDisplay     *display,
        * we're in some special keyboard mode such as window move
        * mode.
        */
-      if (window ? (window == display->grab_window) :
-          (screen == display->grab_screen))
+      if ((window && window == display->grab_window) || !window)
         {
           switch (display->grab_op)
             {
