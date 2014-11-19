@@ -45,21 +45,39 @@ struct _MetaUI
   guint32 button_click_time;
 };
 
-/* Set a black background on the root window so that we don't
+/* Set the noise texture background on the root window so that we don't
  * see confusing old copies of old windows when debugging
- * and testing. */
+ * and testing, but still get flicker free transitions between login and user session. */
 static void
 meta_ui_set_root_background (void)
 {
   Display *xdisplay;
   int screen_number;
   Window xroot;
+  GdkPixbuf *pixbuf;
+  Pixmap xpixmap;
+  GError *error = NULL;
 
   xdisplay = meta_ui_get_display ();
   screen_number = meta_ui_get_screen_number ();
-  xroot = RootWindow(xdisplay, screen_number);
+  xroot = RootWindow (xdisplay, screen_number);
 
-  XSetWindowBackground (xdisplay, xroot, 0x00000000);
+  pixbuf = gdk_pixbuf_new_from_resource ("/org/gnome/mutter/images/noise-tile.png", &error);
+
+  if (!pixbuf)
+    {
+      meta_verbose ("could not load noise texture: %s", error->message);
+      goto out;
+    }
+
+  xpixmap = meta_gdk_pixbuf_put_to_pixmap (pixbuf);
+  g_object_unref (pixbuf);
+
+  XSetWindowBackgroundPixmap (xdisplay, xroot, xpixmap);
+  XFreePixmap (xdisplay, xpixmap);
+
+out:
+  g_clear_error (&error);
 }
 
 void
