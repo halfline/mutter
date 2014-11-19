@@ -45,6 +45,23 @@ struct _MetaUI
   guint32 button_click_time;
 };
 
+/* Set a black background on the root window so that we don't
+ * see confusing old copies of old windows when debugging
+ * and testing. */
+static void
+meta_ui_set_root_background (void)
+{
+  Display *xdisplay;
+  int screen_number;
+  Window xroot;
+
+  xdisplay = meta_ui_get_display ();
+  screen_number = meta_ui_get_screen_number ();
+  xroot = RootWindow(xdisplay, screen_number);
+
+  XSetWindowBackground (xdisplay, xroot, 0x00000000);
+}
+
 void
 meta_ui_init (void)
 {
@@ -57,6 +74,8 @@ meta_ui_init (void)
      that Gdk reports corresponds to the X ones, so we disable the automatic
      scale handling */
   gdk_x11_display_set_window_scale (gdk_display_get_default (), 1);
+
+  meta_ui_set_root_background ();
 }
 
 Display*
