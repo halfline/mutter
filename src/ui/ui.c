@@ -569,6 +569,41 @@ meta_gdk_pixbuf_get_from_pixmap (Pixmap       xpixmap,
   return retval;
 }
 
+Pixmap
+meta_gdk_pixbuf_put_to_pixmap (GdkPixbuf *pixbuf)
+{
+  cairo_surface_t *surface;
+  cairo_t *cr;
+  Display *display;
+  Window xroot;
+  int width, height;
+  XWindowAttributes attrs;
+  Pixmap xpixmap;
+
+  display = GDK_DISPLAY_XDISPLAY (gdk_display_get_default ());
+  xroot = GDK_ROOT_WINDOW ();
+
+  if (!XGetWindowAttributes (display, xroot, &attrs))
+    return None;
+
+  width = gdk_pixbuf_get_width (pixbuf);
+  height = gdk_pixbuf_get_height (pixbuf);
+  xpixmap = XCreatePixmap (display,
+                           xroot,
+                           width,
+                           height,
+                           attrs.depth);
+  surface = cairo_xlib_surface_create (display, xpixmap, attrs.visual, width, height);
+
+  cr = cairo_create (surface);
+  gdk_cairo_set_source_pixbuf (cr, pixbuf, 0, 0);
+  cairo_paint(cr);
+  cairo_destroy (cr);
+  cairo_surface_destroy (surface);
+
+  return xpixmap;
+}
+
 gboolean
 meta_ui_window_should_not_cause_focus (Display *xdisplay,
                                        Window   xwindow)

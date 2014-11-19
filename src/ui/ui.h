@@ -107,6 +107,7 @@ GdkPixbuf* meta_gdk_pixbuf_get_from_pixmap (Pixmap       xpixmap,
                                             int          src_y,
                                             int          width,
                                             int          height);
+Pixmap meta_gdk_pixbuf_put_to_pixmap (GdkPixbuf *pixbuf);
 
 gboolean  meta_ui_window_should_not_cause_focus (Display *xdisplay,
                                                  Window   xwindow);
