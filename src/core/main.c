@@ -80,6 +80,10 @@
 
 #ifdef HAVE_WAYLAND
 #include "wayland/meta-wayland.h"
+# endif
+
+#ifdef HAVE_NATIVE_BACKEND
+#include <systemd/sd-login.h>
 #endif
 
 /*
@@ -291,18 +295,111 @@ on_sigterm (gpointer user_data)
   return G_SOURCE_REMOVE;
 }
 
+#ifdef HAVE_WAYLAND
+#ifdef HAVE_NATIVE_BACKEND
+static char *
+find_logind_session (char **out_session_type)
+{
+  char **sessions = NULL;
+  char *session_id = NULL;
+  int result, i;
+
+  result = sd_pid_get_session (0, &session_id);
+
+  if (result == 0 && session_id != NULL)
+    {
+      if (out_session_type != NULL)
+        {
+          result = sd_session_get_type (session_id, out_session_type);
+
+          if (result < 0)
+            g_clear_pointer (&session_id, (GDestroyNotify) free);
+        }
+
+      return session_id;
+    }
+
+  result = sd_uid_get_sessions (getuid (), TRUE, &sessions);
+
+  if (result < 0)
+    return NULL;
+
+  if (sessions == NULL)
+    return NULL;
+
+  for (i = 0; sessions[i] != NULL; i++)
+    {
+      char *session_type = NULL;
+
+      result = sd_session_get_type (sessions[i], &session_type);
+
+      if (result < 0)
+        continue;
+
+      if (g_strcmp0 (session_type, "x11") == 0||
+          g_strcmp0 (session_type, "wayland") == 0)
+        {
+          session_id = strdup (sessions[i])
+
+          if (out_session_type)
+            *out_session_type = strdup (session_type);
+
+          break;
+        }
+    }
+
+  for (i = 0; sessions[i] != NULL; i++)
+    {
+      free (sessions[i]);
+    }
+
+  free (sessions);
+
+  return session_id;
+}
+#endif
+
+static gboolean
+check_for_wayland_session_type (void)
+{
+
+  char *session_id = NULL;
+  char *session_type = NULL;
+  gboolean is_wayland = FALSE;
+
+#ifdef HAVE_NATIVE_BACKEND
+  session_id = find_logind_session (&session_type);
+#endif
+
+  if (session_id != NULL)
+    {
+      is_wayland = g_strcmp0 (session_type, "wayland") == 0;
+      free (session_id);
+      free (session_type);
+    }
+
+  return is_wayland;
+}
+#endif
+
 static void
 init_backend (void)
 {
+  gboolean session_type_is_wayland = FALSE;
+
+#if defined(HAVE_WAYLAND) && defined(HAVE_NATIVE_BACKEND)
+  session_type_is_wayland = check_for_wayland_session_type ();
+#endif
+
 #if defined(CLUTTER_WINDOWING_EGL) && defined(HAVE_NATIVE_BACKEND)
-  if (opt_display_server)
+  if (opt_display_server || session_type_is_wayland)
     clutter_set_windowing_backend (CLUTTER_WINDOWING_EGL);
   else
 #endif
     clutter_set_windowing_backend (CLUTTER_WINDOWING_X11);
 
 #ifdef HAVE_WAYLAND
-  meta_set_is_wayland_compositor (opt_wayland);
+  meta_set_is_wayland_compositor (opt_wayland || session_type_is_wayland);
 #endif
 
 }
