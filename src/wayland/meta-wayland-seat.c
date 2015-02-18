@@ -44,7 +44,8 @@ seat_get_pointer (struct wl_client *client,
   MetaWaylandSeat *seat = wl_resource_get_user_data (resource);
   MetaWaylandPointer *pointer = &seat->pointer;
 
-  meta_wayland_pointer_create_new_resource (pointer, client, resource, id);
+  if ((seat->capabilities & WL_SEAT_CAPABILITY_POINTER) != 0)
+    meta_wayland_pointer_create_new_resource (pointer, client, resource, id);
 }
 
 static void
@@ -55,7 +56,8 @@ seat_get_keyboard (struct wl_client *client,
   MetaWaylandSeat *seat = wl_resource_get_user_data (resource);
   MetaWaylandKeyboard *keyboard = &seat->keyboard;
 
-  meta_wayland_keyboard_create_new_resource (keyboard, client, resource, id);
+  if ((seat->capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0)
+    meta_wayland_keyboard_create_new_resource (keyboard, client, resource, id);
 }
 
 static void
@@ -66,7 +68,8 @@ seat_get_touch (struct wl_client *client,
   MetaWaylandSeat *seat = wl_resource_get_user_data (resource);
   MetaWaylandTouch *touch = &seat->touch;
 
-  meta_wayland_touch_create_new_resource (touch, client, resource, id);
+  if ((seat->capabilities & WL_SEAT_CAPABILITY_TOUCH) != 0)
+    meta_wayland_touch_create_new_resource (touch, client, resource, id);
 }
 
 static const struct wl_seat_interface seat_interface = {
@@ -297,17 +300,20 @@ meta_wayland_seat_update (MetaWaylandSeat    *seat,
     case CLUTTER_BUTTON_PRESS:
     case CLUTTER_BUTTON_RELEASE:
     case CLUTTER_SCROLL:
+      g_assert ((seat->capabilities & WL_SEAT_CAPABILITY_POINTER) != 0);
       meta_wayland_pointer_update (&seat->pointer, event);
       break;
 
     case CLUTTER_KEY_PRESS:
     case CLUTTER_KEY_RELEASE:
+      g_assert ((seat->capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0);
       meta_wayland_keyboard_update (&seat->keyboard, (const ClutterKeyEvent *) event);
       break;
 
     case CLUTTER_TOUCH_BEGIN:
     case CLUTTER_TOUCH_UPDATE:
     case CLUTTER_TOUCH_END:
+      g_assert ((seat->capabilities & WL_SEAT_CAPABILITY_TOUCH) != 0);
       meta_wayland_touch_update (&seat->touch, event);
       break;
 
@@ -329,15 +335,18 @@ meta_wayland_seat_handle_event (MetaWaylandSeat *seat,
     case CLUTTER_BUTTON_PRESS:
     case CLUTTER_BUTTON_RELEASE:
     case CLUTTER_SCROLL:
+      g_assert ((seat->capabilities & WL_SEAT_CAPABILITY_POINTER) != 0);
       return meta_wayland_pointer_handle_event (&seat->pointer, event);
 
     case CLUTTER_KEY_PRESS:
     case CLUTTER_KEY_RELEASE:
+      g_assert ((seat->capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0);
       return meta_wayland_keyboard_handle_event (&seat->keyboard,
                                                  (const ClutterKeyEvent *) event);
     case CLUTTER_TOUCH_BEGIN:
     case CLUTTER_TOUCH_UPDATE:
     case CLUTTER_TOUCH_END:
+      g_assert ((seat->capabilities & WL_SEAT_CAPABILITY_TOUCH) != 0);
       return meta_wayland_touch_handle_event (&seat->touch, event);
 
     default:
@@ -350,6 +359,9 @@ meta_wayland_seat_handle_event (MetaWaylandSeat *seat,
 void
 meta_wayland_seat_repick (MetaWaylandSeat *seat)
 {
+  if ((seat->capabilities & WL_SEAT_CAPABILITY_POINTER) == 0)
+    return;
+
   meta_wayland_pointer_repick (&seat->pointer);
 }
 
@@ -357,6 +369,9 @@ void
 meta_wayland_seat_set_input_focus (MetaWaylandSeat    *seat,
                                    MetaWaylandSurface *surface)
 {
+  if ((seat->capabilities & WL_SEAT_CAPABILITY_KEYBOARD) == 0)
+    return;
+
   meta_wayland_keyboard_set_focus (&seat->keyboard, surface);
   meta_wayland_data_device_set_keyboard_focus (&seat->data_device);
 }
@@ -374,21 +389,29 @@ meta_wayland_seat_get_grab_info (MetaWaylandSeat    *seat,
 				 gfloat             *x,
 				 gfloat             *y)
 {
-  ClutterEventSequence *sequence;
+  ClutterEventSequence *sequence = NULL;
+  gboolean can_grab_surface = FALSE;
 
-  sequence = meta_wayland_touch_find_grab_sequence (&seat->touch, surface, serial);
+  if ((seat->capabilities & WL_SEAT_CAPABILITY_TOUCH) != 0)
+    sequence = meta_wayland_touch_find_grab_sequence (&seat->touch, surface, serial);
 
   if (sequence)
-    meta_wayland_touch_get_press_coords (&seat->touch, sequence, x, y);
-  else if (meta_wayland_pointer_can_grab_surface (&seat->pointer, surface, serial))
     {
-      if (x)
-        *x = seat->pointer.grab_x;
-      if (y)
-        *y = seat->pointer.grab_y;
+      meta_wayland_touch_get_press_coords (&seat->touch, sequence, x, y);
     }
   else
-    return FALSE;
+    {
+      if ((seat->capabilities & WL_SEAT_CAPABILITY_POINTER) != 0)
+        can_grab_surface = meta_wayland_pointer_can_grab_surface (&seat->pointer, surface, serial);
 
-  return TRUE;
+      if (can_grab_surface)
+        {
+          if (x)
+            *x = seat->pointer.grab_x;
+          if (y)
+            *y = seat->pointer.grab_y;
+        }
+    }
+
+  return sequence || can_grab_surface;
 }
