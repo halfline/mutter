@@ -34,6 +34,7 @@
 struct _MetaSurfaceActorWaylandPrivate
 {
   MetaWaylandSurface *surface;
+  struct wl_listener  surface_destroy_listener;
 };
 typedef struct _MetaSurfaceActorWaylandPrivate MetaSurfaceActorWaylandPrivate;
 
@@ -182,8 +183,11 @@ static void
 meta_surface_actor_wayland_dispose (GObject *object)
 {
   MetaSurfaceActorWayland *self = META_SURFACE_ACTOR_WAYLAND (object);
+  MetaSurfaceActorWaylandPrivate *priv = meta_surface_actor_wayland_get_instance_private (self);
 
   meta_surface_actor_wayland_set_texture (self, NULL);
+
+  wl_list_remove (&priv->surface_destroy_listener.link);
 
   G_OBJECT_CLASS (meta_surface_actor_wayland_parent_class)->dispose (object);
 }
@@ -212,6 +216,15 @@ meta_surface_actor_wayland_class_init (MetaSurfaceActorWaylandClass *klass)
 }
 
 static void
+handle_surface_destroyed (struct wl_listener *listener, void *data)
+{
+  MetaSurfaceActorWaylandPrivate *priv =
+    wl_container_of (listener, priv, surface_destroy_listener);
+
+  priv->surface = NULL;
+}
+
+static void
 meta_surface_actor_wayland_init (MetaSurfaceActorWayland *self)
 {
 }
@@ -225,6 +238,9 @@ meta_surface_actor_wayland_new (MetaWaylandSurface *surface)
   g_assert (meta_is_wayland_compositor ());
 
   priv->surface = surface;
+  priv->surface_destroy_listener.notify = handle_surface_destroyed;
+
+  wl_resource_add_destroy_listener (surface->resource, &priv->surface_destroy_listener);
 
   return META_SURFACE_ACTOR (self);
 }
