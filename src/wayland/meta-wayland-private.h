@@ -44,6 +44,7 @@ typedef struct
 {
   int display_index;
   char *lock_file;
+  char *auth_file;
   int abstract_fd;
   int unix_fd;
   pid_t pid;

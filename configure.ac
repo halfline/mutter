@@ -80,6 +80,7 @@ MUTTER_PC_MODULES="
    cogl-1.0 >= 1.17.1
    upower-glib >= 0.99.0
    gnome-desktop-3.0
+   xau
    xcomposite >= 0.2
    xcursor
    xdamage

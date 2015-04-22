@@ -32,6 +32,8 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#include <X11/Xauth.h>
+
 static void
 associate_window_with_surface (MetaWindow         *window,
                                MetaWaylandSurface *surface)
@@ -432,6 +434,192 @@ on_displayfd_ready (int          fd,
   return G_SOURCE_REMOVE;
 }
 
+static gboolean
+_read_bytes (int      fd,
+             char    *bytes,
+             gsize    number_of_bytes,
+             GError **error)
+{
+  size_t bytes_left_to_read;
+  size_t total_bytes_read = 0;
+  gboolean premature_eof;
+
+  bytes_left_to_read = number_of_bytes;
+  premature_eof = FALSE;
+  do
+    {
+      size_t bytes_read = 0;
+
+      errno = 0;
+      bytes_read = read (fd, bytes + total_bytes_read,
+                         bytes_left_to_read);
+
+      if (bytes_read > 0)
+        {
+          total_bytes_read += bytes_read;
+          bytes_left_to_read -= bytes_read;
+        }
+      else if (bytes_read == 0)
+        {
+          premature_eof = TRUE;
+          break;
+        }
+      else if ((errno != EINTR))
+        {
+          break;
+        }
+    }
+  while (bytes_left_to_read > 0);
+
+  if (premature_eof) {
+      g_set_error (error,
+                   G_FILE_ERROR,
+                   G_FILE_ERROR_FAILED,
+                   "No data available");
+
+      return FALSE;
+  } else if (bytes_left_to_read > 0) {
+      g_set_error (error,
+                   G_FILE_ERROR,
+                   g_file_error_from_errno (errno),
+                   "%s", g_strerror (errno));
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+static char *
+generate_random_bytes (gsize    size,
+                       GError **error)
+{
+  int fd = -1;
+  char *random_bytes = NULL;
+  gboolean ret;
+
+  fd = open ("/dev/urandom", O_RDONLY);
+
+  if (fd < 0)
+    {
+      g_set_error (error,
+                   G_FILE_ERROR,
+                   g_file_error_from_errno (errno),
+                   "%s", g_strerror (errno));
+      goto out;
+
+    }
+
+  random_bytes = g_malloc (size);
+  ret = _read_bytes (fd, random_bytes, size, error);
+
+  if (!ret)
+    {
+      g_clear_pointer (&random_bytes, g_free);
+      goto out;
+    }
+
+out:
+  if (fd != -1)
+    close (fd);
+  return random_bytes;
+}
+
+static FILE *
+create_auth_file (char **filename)
+{
+  char *auth_dir = NULL;
+  char *auth_file = NULL;
+  int fd;
+  FILE *fp = NULL;
+  const char *session_id;
+
+  session_id = g_getenv ("XDG_SESSION_ID");
+
+  if (session_id == NULL)
+    return NULL;
+
+  auth_dir = g_build_filename (g_get_user_runtime_dir (),
+                               "mutter",
+                               NULL);
+
+  g_mkdir_with_parents (auth_dir, 0711);
+  auth_file = g_strdup_printf ("%s/xauth-for-session-%s", auth_dir, session_id);
+  g_clear_pointer (&auth_dir, g_free);
+
+  fd = open (auth_file, O_RDWR | O_CREAT | O_TRUNC, 0700);
+
+  if (fd < 0)
+    {
+      g_warning ("could not open %s to store auth cookie: %m",
+                 auth_file);
+      g_clear_pointer (&auth_file, g_free);
+      goto out;
+    }
+
+  fp = fdopen (fd, "w+");
+
+  if (fp == NULL)
+    {
+      g_warning ("could not set up stream for auth cookie file: %m");
+      g_clear_pointer (&auth_file, g_free);
+      close (fd);
+      goto out;
+    }
+
+  *filename = auth_file;
+out:
+  return fp;
+}
+
+static char *
+prepare_auth_file (void)
+{
+  FILE     *fp = NULL;
+  char     *filename = NULL;
+  GError   *error = NULL;
+  gboolean  prepared = FALSE;
+  Xauth     auth_entry = { 0 };
+  char      localhost[HOST_NAME_MAX + 1] = "";
+
+  fp = create_auth_file (&filename);
+
+  if (fp == NULL)
+    return NULL;
+
+  if (gethostname (localhost, HOST_NAME_MAX) < 0)
+    strncpy (localhost, "localhost", sizeof (localhost) - 1);
+
+  auth_entry.family = FamilyLocal;
+  auth_entry.address = localhost;
+  auth_entry.address_length = strlen (auth_entry.address);
+  auth_entry.name = "MIT-MAGIC-COOKIE-1";
+  auth_entry.name_length = strlen (auth_entry.name);
+
+  auth_entry.data_length = 16;
+  auth_entry.data = generate_random_bytes (auth_entry.data_length, &error);
+
+  if (error != NULL)
+    goto out;
+
+  if (!XauWriteAuth (fp, &auth_entry) || fflush (fp) == EOF)
+    goto out;
+
+  auth_entry.family = FamilyWild;
+  if (!XauWriteAuth (fp, &auth_entry) || fflush (fp) == EOF)
+    goto out;
+
+  prepared = TRUE;
+
+out:
+  g_clear_pointer (&auth_entry.data, g_free);
+  g_clear_pointer (&fp, fclose);
+
+  if (!prepared)
+    g_clear_pointer (&filename, g_free);
+
+  return filename;
+}
+
 gboolean
 meta_xwayland_start (MetaXWaylandManager *manager,
                      struct wl_display   *wl_display)
@@ -443,9 +631,17 @@ meta_xwayland_start (MetaXWaylandManager *manager,
   GSubprocessFlags flags;
   GSubprocess *proc;
   GError *error = NULL;
+  char *auth_file;
 
   if (!choose_xdisplay (manager))
     goto out;
+
+  auth_file = prepare_auth_file ();
+
+  if (!auth_file)
+    goto out;
+
+  manager->auth_file = auth_file;
 
   /* We want xwayland to be a wayland client so we make a socketpair to setup a
    * wayland protocol connection. */
@@ -480,6 +676,7 @@ meta_xwayland_start (MetaXWaylandManager *manager,
   g_subprocess_launcher_setenv (launcher, "WAYLAND_SOCKET", "3", TRUE);
   proc = g_subprocess_launcher_spawn (launcher, &error,
                                       XWAYLAND_PATH, manager->display_name,
+                                      "-auth", auth_file,
                                       "-rootless", "-noreset",
                                       "-listen", "4",
                                       "-listen", "5",
@@ -491,6 +688,7 @@ meta_xwayland_start (MetaXWaylandManager *manager,
       goto out;
     }
 
+  g_setenv ("XAUTHORITY", manager->auth_file, TRUE);
   g_subprocess_wait_async  (proc, NULL, xserver_died, NULL);
   g_unix_fd_add (displayfd[0], G_IO_IN, on_displayfd_ready, manager);
   manager->client = wl_client_create (wl_display, xwayland_client_fd[0]);
@@ -506,8 +704,17 @@ meta_xwayland_start (MetaXWaylandManager *manager,
 out:
   if (!started)
     {
-      unlink (manager->lock_file);
-      g_clear_pointer (&manager->lock_file, g_free);
+      if (manager->lock_file)
+        {
+          unlink (manager->lock_file);
+          g_clear_pointer (&manager->lock_file, g_free);
+        }
+
+      if (manager->auth_file)
+        {
+          unlink (manager->auth_file);
+          g_clear_pointer (&manager->auth_file, g_free);
+        }
     }
   return started;
 }
@@ -537,5 +744,11 @@ meta_xwayland_stop (MetaXWaylandManager *manager)
     {
       unlink (manager->lock_file);
       g_clear_pointer (&manager->lock_file, g_free);
+    }
+
+  if (manager->auth_file)
+    {
+      unlink (manager->auth_file);
+      g_clear_pointer (&manager->auth_file, g_free);
     }
 }
