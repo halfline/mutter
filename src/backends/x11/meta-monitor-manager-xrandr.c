@@ -1996,6 +1996,18 @@ meta_monitor_manager_xrandr_class_init (MetaMonitorManagerXrandrClass *klass)
     g_quark_from_static_string ("-meta-monitor-xrandr-data");
 }
 
+static gboolean
+is_xvnc (MetaMonitorManager *manager)
+{
+  unsigned int i;
+
+  for (i = 0; i < manager->n_outputs; ++i)
+    if (g_str_has_prefix (manager->outputs[i].name, "VNC-"))
+      return TRUE;
+
+  return FALSE;
+}
+
 gboolean
 meta_monitor_manager_xrandr_handle_xevent (MetaMonitorManagerXrandr *manager_xrandr,
 					   XEvent                   *event)
@@ -2003,6 +2015,7 @@ meta_monitor_manager_xrandr_handle_xevent (MetaMonitorManagerXrandr *manager_xra
   MetaMonitorManager *manager = META_MONITOR_MANAGER (manager_xrandr);
   gboolean is_hotplug;
   gboolean is_our_configuration;
+  unsigned int timestamp;
 
   if ((event->type - manager_xrandr->rr_event_base) != RRScreenChangeNotify)
     return FALSE;
@@ -2012,8 +2025,11 @@ meta_monitor_manager_xrandr_handle_xevent (MetaMonitorManagerXrandr *manager_xra
   meta_monitor_manager_read_current_state (manager);
 
 
-  is_hotplug = (manager_xrandr->resources->timestamp <
-                manager_xrandr->resources->configTimestamp);
+  timestamp = manager_xrandr->resources->timestamp;
+  if (is_xvnc (manager))
+    timestamp += 100;
+
+  is_hotplug = (timestamp < manager_xrandr->resources->configTimestamp);
   is_our_configuration = (manager_xrandr->resources->timestamp ==
                           manager_xrandr->last_xrandr_set_timestamp);
   if (is_hotplug)
