@@ -102,16 +102,16 @@ get_seat_proxy (GCancellable *cancellable,
 }
 
 static void
+reset_modes (void)
+{
+  /* FIXME: egl
+   */
+}
+
+static void
 session_unpause (void)
 {
-  ClutterBackend *clutter_backend;
-  CoglContext *cogl_context;
-  CoglDisplay *cogl_display;
-
-  clutter_backend = clutter_get_default_backend ();
-  cogl_context = clutter_backend_get_cogl_context (clutter_backend);
-  cogl_display = cogl_context_get_display (cogl_context);
-  cogl_kms_display_queue_modes_reset (cogl_display);
+  reset_modes ();
 
   clutter_evdev_reclaim_devices ();
   clutter_egl_thaw_master_clock ();
