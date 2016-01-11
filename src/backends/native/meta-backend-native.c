@@ -337,6 +337,12 @@ meta_backend_native_init (MetaBackendNative *native)
   MetaBackendNativePrivate *priv = meta_backend_native_get_instance_private (native);
   GError *error = NULL;
 
+  /* FIXME: this just temporary for development, we need to come up
+   * with a proper backend or at least a propery way to set the NULL
+   * backend
+   */
+  g_setenv ("COGL_RENDERER", "EGL_NULL", TRUE);
+
   priv->session_controller = meta_session_controller_new (&error);
   if (priv->session_controller == NULL)
     {
