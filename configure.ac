@@ -1001,8 +1001,6 @@ AC_CONFIG_FILES([
 	tests/performance/Makefile
 
         examples/Makefile
-
-	po/Makefile.in
 ])
 
 AC_OUTPUT
