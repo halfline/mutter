@@ -662,9 +662,6 @@ AC_CONFIG_FILES([
 	clutter/Makefile
         clutter/clutter-config.h
 	clutter/clutter-version.h
-	clutter/clutter-$CLUTTER_API_VERSION.pc:clutter/clutter.pc.in
-
-	clutter/cally/cally-$CLUTTER_API_VERSION.pc:clutter/cally/cally.pc.in
 ])
 
 AC_OUTPUT
