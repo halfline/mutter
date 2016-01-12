@@ -217,10 +217,6 @@ AC_ARG_ENABLE([x11-backend],
               [AS_HELP_STRING([--enable-x11-backend=@<:@yes/no@:>@], [Enable the X11 backend (default=check)])],
               [enable_x11=$enableval],
               [enable_x11=check])
-AC_ARG_ENABLE([gdk-backend],
-              [AS_HELP_STRING([--enable-gdk-backend=@<:@yes/no@:>@], [Enable the GDK backend (default=check)])],
-              [enable_gdk=$enableval],
-              [enable_gdk=check])
 AC_ARG_ENABLE([wayland-backend],
               [AS_HELP_STRING([--enable-wayland-backend=@<:@yes/no@:>@], [Enable the Wayland client backend (default=no)])],
               [enable_wayland=$enableval],
@@ -234,11 +230,6 @@ dnl Define default values
 AS_IF([test "x$enable_x11" = "xcheck"],
       [
         AS_IF([test "x$platform_glx" = "xyes"], [enable_x11=yes], [enable_x11=no])
-      ])
-
-AS_IF([test "x$enable_gdk" = "xcheck"],
-      [
-        PKG_CHECK_EXISTS([gdk-3.0 >= gdk_req_version], [enable_gdk=yes], [enable_gdk=no])
       ])
 
 dnl Per-backend rules
@@ -260,17 +251,6 @@ AS_IF([test "x$enable_x11" = "xyes"],
                            BACKEND_PC_FILES_PRIVATE="$BACKEND_PC_FILES_PRIVATE pangoft2"
                          ],
                          [])
-      ])
-
-AS_IF([test "x$enable_gdk" = "xyes"],
-      [
-        CLUTTER_BACKENDS="$CLUTTER_BACKENDS gdk"
-        CLUTTER_INPUT_BACKENDS="$CLUTTER_INPUT_BACKENDS gdk"
-
-	SUPPORT_GDK=1
-        SUPPORT_COGL=1
-
-	BACKEND_PC_FILES="$BACKEND_PC_FILES gdk-3.0"
       ])
 
 AS_IF([test "x$enable_wayland" != xno],
@@ -444,10 +424,6 @@ AS_IF([test "x$SUPPORT_X11" = "x1"],
       [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
 #define CLUTTER_WINDOWING_X11 \"x11\"
 #define CLUTTER_INPUT_X11 \"x11\""])
-AS_IF([test "x$SUPPORT_GDK" = "x1"],
-      [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
-#define CLUTTER_WINDOWING_GDK \"gdk\"
-#define CLUTTER_INPUT_GDK \"gdk\""])
 AS_IF([test "x$SUPPORT_GLX" = "x1"],
       [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
 #define CLUTTER_WINDOWING_GLX \"glx\""])
