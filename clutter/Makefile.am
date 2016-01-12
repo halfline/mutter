@@ -11,8 +11,6 @@ DISTCLEANFILES =
 EXTRA_DIST =
 BUILT_SOURCES =
 
-lib_LTLIBRARIES =
-
 AM_CPPFLAGS = \
 	-DCLUTTER_PREFIX=\""$(prefix)"\"	\
 	-DCLUTTER_LIBDIR=\""$(libdir)"\"	\
@@ -37,14 +35,6 @@ AM_CFLAGS = $(CLUTTER_CFLAGS) $(MAINTAINER_CFLAGS)
 
 # these are the gir files we generate using g-ir-scanner
 INTROSPECTION_GIRS =
-
-# the base include path for headers
-clutter_base_includedir = $(includedir)/clutter-$(CLUTTER_API_VERSION)
-clutter_includedir = $(clutter_base_includedir)/clutter
-clutter_deprecateddir = $(clutter_base_includedir)/clutter/deprecated
-
-# pkg-config files
-pc_files =
 
 # common sources - please, keep these sorted alphabetically
 source_h =					\
@@ -355,8 +345,6 @@ EXTRA_DIST += clutter-version.h.in clutter-version.h
 # key symbol update script
 EXTRA_DIST += clutter-keysyms-update.pl
 
-pc_files += clutter-$(CLUTTER_API_VERSION).pc
-
 # in order to be compatible with Clutter < 1.10, when we shipped a single
 # shared library whose name was determined by the single backend it
 # supported, we need to install symbolic links so that existing applications
@@ -430,14 +418,6 @@ backend_source_c_priv += $(x11_source_c_priv)
 
 # the list of files we want to introspect on X11
 x11_introspection = $(x11_source_c) $(x11_source_h)
-
-clutterx11_includedir = $(clutter_includedir)/x11
-clutterx11_include_HEADERS = $(x11_source_h)
-
-clutter-x11-$(CLUTTER_API_VERSION).pc: clutter-$(CLUTTER_API_VERSION).pc
-	$(QUIET_GEN)cp -f $< $(@F)
-
-pc_files += clutter-x11-$(CLUTTER_API_VERSION).pc
 endif # SUPPORT_X11
 
 # Shared cogl backend files
@@ -458,12 +438,6 @@ backend_source_h += $(cogl_source_h)
 backend_source_c += $(cogl_source_c)
 backend_source_h_priv += $(cogl_source_h_priv)
 backend_source_c_priv += $(cogl_source_c_priv)
-
-# pkg-config file for the cogl meta-backend
-clutter-cogl-$(CLUTTER_API_VERSION).pc: clutter-$(CLUTTER_API_VERSION).pc
-	$(QUIET_GEN)cp -f $< $(@F)
-
-pc_files += clutter-cogl-$(CLUTTER_API_VERSION).pc
 endif
 
 if SUPPORT_X11
@@ -493,9 +467,6 @@ if USE_EVDEV
 backend_source_c_priv += $(evdev_c_priv)
 backend_source_h_priv += $(evdev_h_priv)
 backend_source_h += $(evdev_h)
-
-clutterevdev_includedir = $(clutter_includedir)/evdev
-clutterevdev_include_HEADERS = $(evdev_h)
 endif # SUPPORT_EVDEV
 
 if NEED_XKB_UTILS
@@ -519,28 +490,12 @@ wayland_compositor_source_h = \
 backend_source_h += $(wayland_compositor_source_h)
 backend_source_c += \
 	wayland/clutter-wayland-surface.c
-
-wayland_compositor_includedir = $(clutter_includedir)/wayland
-wayland_compositor_include_HEADERS = $(wayland_compositor_source_h)
-
-clutter-wayland-compositor-$(CLUTTER_API_VERSION).pc: clutter-$(CLUTTER_API_VERSION).pc
-	$(QUIET_GEN)cp -f $< $(@F)
-
-pc_files += clutter-wayland-compositor-$(CLUTTER_API_VERSION).pc
 endif
 
 if SUPPORT_EGL
 backend_source_h += $(egl_source_h)
 backend_source_c += $(egl_source_c)
 backend_source_h_priv += $(egl_source_h_priv)
-
-clutteregl_includedir = $(clutter_includedir)/egl
-clutteregl_include_HEADERS = $(egl_source_h)
-
-clutter-egl-$(CLUTTER_API_VERSION).pc: clutter-$(CLUTTER_API_VERSION).pc
-	$(QUIET_GEN)cp -f $< $(@F)
-
-pc_files += clutter-egl-$(CLUTTER_API_VERSION).pc
 endif # SUPPORT_EGL
 
 # cally
@@ -576,12 +531,6 @@ cally_sources_private = \
 	cally/cally-actor-private.h	\
 	$(NULL)
 
-cally_includedir = $(clutter_base_includedir)/cally
-cally_include_HEADERS = $(cally_sources_h)
-
-pc_files += cally/cally-$(CLUTTER_API_VERSION).pc
-EXTRA_DIST += cally/cally.pc.in
-
 # general build rules:
 # you should not need to modify anything below this point
 
@@ -596,20 +545,12 @@ glib_enum_c = clutter-enum-types.c
 glib_enum_headers = $(source_h) $(deprecated_h)
 include $(srcdir)/Makefile.am.enums
 
-pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = $(pc_files)
-DISTCLEANFILES += $(pc_files)
+mutterlibdir = $(libdir)/mutter
+mutterlib_LTLIBRARIES = libmutter-clutter-@CLUTTER_API_VERSION@.la
 
-clutter_include_HEADERS = $(source_h) clutter.h clutter-version.h clutter-autocleanups.h
-nodist_clutter_include_HEADERS = clutter-config.h $(built_source_h)
+libmutter_clutter_@CLUTTER_API_VERSION@_la_LIBADD = $(LIBM) $(CLUTTER_LIBS)
 
-clutter_deprecated_HEADERS = $(deprecated_h)
-
-lib_LTLIBRARIES += libclutter-@CLUTTER_API_VERSION@.la
-
-libclutter_@CLUTTER_API_VERSION@_la_LIBADD = $(LIBM) $(CLUTTER_LIBS)
-
-libclutter_@CLUTTER_API_VERSION@_la_SOURCES = \
+libmutter_clutter_@CLUTTER_API_VERSION@_la_SOURCES = \
 	$(backend_source_c) \
 	$(backend_source_h) \
 	$(backend_source_c_priv) \
@@ -627,32 +568,32 @@ libclutter_@CLUTTER_API_VERSION@_la_SOURCES = \
 	$(cally_sources_private) \
 	$(NULL)
 
-nodist_libclutter_@CLUTTER_API_VERSION@_la_SOURCES = \
+nodist_libmutter_clutter_@CLUTTER_API_VERSION@_la_SOURCES = \
 	$(backend_source_built) \
 	$(built_source_c) \
 	$(built_source_h)
 
-libclutter_@CLUTTER_API_VERSION@_la_LDFLAGS = \
+libmutter_clutter_@CLUTTER_API_VERSION@_la_LDFLAGS = \
 	$(CLUTTER_LINK_FLAGS) \
 	$(CLUTTER_LT_LDFLAGS) \
 	-export-dynamic \
-	-rpath $(libdir) \
+	-rpath $(mutterlibdir) \
 	$(NULL)
 
 install-exec-local:
-	test -z "$(libdir)" || $(MKDIR_P) "$(DESTDIR)$(libdir)"
+	test -z "$(mutterlibdir)" || $(MKDIR_P) "$(DESTDIR)$(mutterlibdir)"
 	for lib in `echo $(compat_libs)`; do \
-	  (cd $(DESTDIR)$(libdir) && \
+	  (cd $(DESTDIR)$(mutterlibdir) && \
 	    rm -f $$lib.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION); \
 	  ) ; \
-	  (cd $(DESTDIR)$(libdir) && \
-	    { ln -s -f libclutter-$(CLUTTER_API_VERSION).so.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION) $$lib.0 || \
-	      { rm -f $$lib.0 && ln -s libclutter-1.0.so.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION) $$lib.0; }; \
+	  (cd $(DESTDIR)$(mutterlibdir) && \
+	    { ln -s -f libmutter-clutter-$(CLUTTER_API_VERSION).so.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION) $$lib.0 || \
+	      { rm -f $$lib.0 && ln -s libmutter-clutter-1.0.so.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION) $$lib.0; }; \
 	    } \
 	  ) ; \
 	  (cd $(DESTDIR)$(libdir) && \
-	    { ln -s -f libclutter-$(CLUTTER_API_VERSION).so.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION) $$lib || \
-	      { rm -f $$lib && ln -s libclutter-1.0.so.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION) $$lib; }; \
+	    { ln -s -f libmutter-clutter-$(CLUTTER_API_VERSION).so.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION) $$lib || \
+	      { rm -f $$lib && ln -s libmutter-clutter-1.0.so.0.$(CLUTTER_LT_CURRENT).$(CLUTTER_LT_REVISION) $$lib; }; \
 	    } \
 	  ) ; \
 	done
@@ -661,15 +602,19 @@ install-exec-local:
 -include $(INTROSPECTION_MAKEFILE)
 
 if HAVE_INTROSPECTION
-Clutter-@CLUTTER_API_VERSION@.gir: libclutter-@CLUTTER_API_VERSION@.la Makefile
+Clutter-@CLUTTER_API_VERSION@.gir: libmutter-clutter-@CLUTTER_API_VERSION@.la Makefile
 
 Clutter_@CLUTTER_API_VERSION_AM@_gir_NAMESPACE = Clutter
 Clutter_@CLUTTER_API_VERSION_AM@_gir_VERSION = @CLUTTER_API_VERSION@
-Clutter_@CLUTTER_API_VERSION_AM@_gir_LIBS = libclutter-@CLUTTER_API_VERSION@.la
+Clutter_@CLUTTER_API_VERSION_AM@_gir_LIBS = libmutter-clutter-@CLUTTER_API_VERSION@.la
 Clutter_@CLUTTER_API_VERSION_AM@_gir_FILES = \
-	$(clutter_include_HEADERS) \
-	$(clutter_deprecated_HEADERS) \
-	$(nodist_clutter_include_HEADERS) \
+	$(source_h) \
+	clutter.h \
+	clutter-version.h \
+	clutter-autocleanups.h \
+	clutter-config.h \
+	$(built_source_h) \
+	$(deprecated_h) \
 	$(source_c) \
 	$(deprecated_c) \
 	$(built_source_c)
@@ -686,7 +631,7 @@ Cally-@CLUTTER_API_VERSION@.gir: Makefile Clutter-@CLUTTER_API_VERSION@.gir
 
 Cally_@CLUTTER_API_VERSION_AM@_gir_NAMESPACE = Cally
 Cally_@CLUTTER_API_VERSION_AM@_gir_VERSION = @CLUTTER_API_VERSION@
-Cally_@CLUTTER_API_VERSION_AM@_gir_LIBS = libclutter-@CLUTTER_API_VERSION@.la
+Cally_@CLUTTER_API_VERSION_AM@_gir_LIBS = libmutter-clutter-@CLUTTER_API_VERSION@.la
 Cally_@CLUTTER_API_VERSION_AM@_gir_FILES = $(cally_sources_h) $(cally_sources_c)
 Cally_@CLUTTER_API_VERSION_AM@_gir_CFLAGS = $(AM_CPPFLAGS) $(CLUTTER_CFLAGS)
 Cally_@CLUTTER_API_VERSION_AM@_gir_SCANNERFLAGS = \
@@ -702,7 +647,7 @@ ClutterX11-@CLUTTER_API_VERSION@.gir: Makefile Clutter-@CLUTTER_API_VERSION@.gir
 
 ClutterX11_@CLUTTER_API_VERSION_AM@_gir_NAMESPACE = ClutterX11
 ClutterX11_@CLUTTER_API_VERSION_AM@_gir_INCLUDES = xlib-2.0
-ClutterX11_@CLUTTER_API_VERSION_AM@_gir_LIBS = libclutter-@CLUTTER_API_VERSION@.la
+ClutterX11_@CLUTTER_API_VERSION_AM@_gir_LIBS = libmutter-clutter-@CLUTTER_API_VERSION@.la
 ClutterX11_@CLUTTER_API_VERSION_AM@_gir_FILES = $(x11_introspection)
 ClutterX11_@CLUTTER_API_VERSION_AM@_gir_CFLAGS = $(AM_CPPFLAGS) $(CLUTTER_CFLAGS)
 ClutterX11_@CLUTTER_API_VERSION_AM@_gir_SCANNERFLAGS = \
@@ -716,10 +661,10 @@ endif # SUPPORT_X11
 
 # INTROSPECTION_GIRDIR/INTROSPECTION_TYPELIBDIR aren't the right place to
 # install anything - we need to install inside our prefix.
-girdir = $(datadir)/gir-1.0
+girdir = $(mutterlibdir)
 gir_DATA = $(INTROSPECTION_GIRS)
 
-typelibdir = $(libdir)/girepository-1.0
+typelibdir = $(mutterlibdir)
 typelib_DATA = $(INTROSPECTION_GIRS:.gir=.typelib)
 
 EXTRA_DIST += \
