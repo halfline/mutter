@@ -87,11 +87,7 @@ dnl = Preliminary platform checks =============================================
 
 AC_CANONICAL_HOST
 
-platform_quartz=no
 platform_linux=no
-
-AC_CHECK_HEADER([OpenGL/gl.h], [platform_quartz=yes], [platform_quartz=no])
-AM_CONDITIONAL(OS_QUARTZ, [test "$platform_quartz" = "yes"])
 
 AC_CHECK_HEADER([GL/glx.h], [platform_glx=yes], [platform_glx=no])
 AC_CHECK_LIB([GL], [glXCreateContext], [platform_glx=yes], [platform_glx=no])
@@ -221,10 +217,6 @@ AC_ARG_ENABLE([x11-backend],
               [AS_HELP_STRING([--enable-x11-backend=@<:@yes/no@:>@], [Enable the X11 backend (default=check)])],
               [enable_x11=$enableval],
               [enable_x11=check])
-AC_ARG_ENABLE([quartz-backend],
-              [AS_HELP_STRING([--enable-quartz-backend=@<:@yes/no@:>@], [Enable the OS X backend (default=check)])],
-              [enable_osx=$enableval],
-              [enable_osx=check])
 AC_ARG_ENABLE([gdk-backend],
               [AS_HELP_STRING([--enable-gdk-backend=@<:@yes/no@:>@], [Enable the GDK backend (default=check)])],
               [enable_gdk=$enableval],
@@ -242,11 +234,6 @@ dnl Define default values
 AS_IF([test "x$enable_x11" = "xcheck"],
       [
         AS_IF([test "x$platform_glx" = "xyes"], [enable_x11=yes], [enable_x11=no])
-      ])
-
-AS_IF([test "x$enable_osx" = "xcheck"],
-      [
-        AS_IF([test "x$platform_quartz" = "xyes"], [enable_osx=yes], [enable_osx=no])
       ])
 
 AS_IF([test "x$enable_gdk" = "xcheck"],
@@ -375,16 +362,6 @@ AS_IF([test "x$enable_egl" = "xyes"],
         AC_DEFINE([CLUTTER_EGL_BACKEND_GENERIC], [1], [Use Generic EGL backend])
       ])
 
-AS_IF([test "x$enable_osx" = "xyes"],
-      [
-        CLUTTER_BACKENDS="$CLUTTER_BACKENDS osx"
-        CLUTTER_INPUT_BACKENDS="$CLUTTER_INPUT_BACKENDS osx"
-
-        FLAVOUR_LIBS="$FLAVOUR_LIBS -framework Cocoa -framework OpenGL"
-
-        SUPPORT_OSX=1
-      ])
-
 AS_IF([test "x$CLUTTER_BACKENDS" = "x"],
       [
         AC_MSG_ERROR([No backend enabled. You need to enable at least one backend.])
@@ -435,7 +412,6 @@ AM_CONDITIONAL(SUPPORT_GLX,     [test "x$SUPPORT_GLX" = "x1"])
 AM_CONDITIONAL(SUPPORT_X11,     [test "x$SUPPORT_X11" = "x1"])
 AM_CONDITIONAL(SUPPORT_GDK,     [test "x$SUPPORT_GDK" = "x1"])
 AM_CONDITIONAL(SUPPORT_EGL,     [test "x$SUPPORT_EGL" = "x1"])
-AM_CONDITIONAL(SUPPORT_OSX,     [test "x$SUPPORT_OSX" = "x1"])
 AM_CONDITIONAL(SUPPORT_WAYLAND, [test "x$SUPPORT_WAYLAND" = "x1"])
 
 AM_CONDITIONAL(USE_COGL,  [test "x$SUPPORT_COGL" = "x1"])
@@ -481,10 +457,6 @@ AS_IF([test "x$SUPPORT_EGL" = "x1"],
 AS_IF([test "x$SUPPORT_WAYLAND" = "x1"],
       [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
 #define CLUTTER_WINDOWING_WAYLAND \"wayland\""])
-AS_IF([test "x$SUPPORT_OSX" = "x1"],
-      [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
-#define CLUTTER_WINDOWING_OSX \"osx\"
-#define CLUTTER_INPUT_OSX \"osx\""])
 AS_IF([test "x$SUPPORT_EVDEV" = "x1"],
       [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
 #define CLUTTER_INPUT_EVDEV \"evdev\""])
