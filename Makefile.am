@@ -1,5 +1,3 @@
-include $(top_srcdir)/build/autotools/Makefile.am.silent
-
 NULL =
 
 SUBDIRS = build clutter
@@ -21,7 +19,3 @@ CLEANFILES = $(pcfiles)
 DISTCLEANFILES =
 
 DISTCHECK_CONFIGURE_FLAGS = --enable-maintainer-flags
-
-# .release requires .changelog rules
-include $(top_srcdir)/build/autotools/Makefile.am.changelog
-include $(top_srcdir)/build/autotools/Makefile.am.release
