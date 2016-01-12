@@ -588,13 +588,13 @@ EXTRA_DIST += cally/cally.pc.in
 # glib-genmarshal rules
 glib_marshal_list = clutter-marshal.list
 glib_marshal_prefix = _clutter_marshal
-include $(top_srcdir)/build/autotools/Makefile.am.marshal
+include $(srcdir)/Makefile.am.marshal
 
 # glib-mkenums rules
 glib_enum_h = clutter-enum-types.h
 glib_enum_c = clutter-enum-types.c
 glib_enum_headers = $(source_h) $(deprecated_h)
-include $(top_srcdir)/build/autotools/Makefile.am.enums
+include $(srcdir)/Makefile.am.enums
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = $(pc_files)
@@ -721,6 +721,10 @@ gir_DATA = $(INTROSPECTION_GIRS)
 
 typelibdir = $(libdir)/girepository-1.0
 typelib_DATA = $(INTROSPECTION_GIRS:.gir=.typelib)
+
+EXTRA_DIST += \
+	Makefile.am.marshal	\
+	Makefile.am.enums
 
 CLEANFILES += $(gir_DATA) $(typelib_DATA)
 endif # HAVE_INTROSPECTION
