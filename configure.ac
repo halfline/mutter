@@ -55,8 +55,6 @@ AC_INIT([clutter],
 
 AC_CONFIG_SRCDIR([clutter/clutter.h])
 AC_CONFIG_HEADERS([clutter/config.h])
-AC_CONFIG_AUX_DIR([build])
-AC_CONFIG_MACRO_DIR([build/autotools])
 
 AM_INIT_AUTOMAKE([1.11 foreign -Wno-portability no-define no-dist-gzip dist-xz tar-ustar])
 AM_SILENT_RULES([yes])
@@ -654,11 +652,6 @@ AC_DEFINE_UNQUOTED([GETTEXT_PACKAGE],
 
 AC_CONFIG_FILES([
 	Makefile
-        README
-
-	build/Makefile
-	build/autotools/Makefile
-
 	clutter/Makefile
         clutter/clutter-config.h
 	clutter/clutter-version.h
