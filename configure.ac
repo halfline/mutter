@@ -514,7 +514,6 @@ AC_SUBST([COGL_DRIVER],          [deprecated])
 dnl === X11 checks, only for X11-based backends ===============================
 X11_PC_FILES=""
 X11_EXTS=""
-x11_tests=no
 
 AS_IF([test "x$SUPPORT_X11" = "x1"],
       [
@@ -693,7 +692,6 @@ AS_IF([test "x$SUPPORT_X11" = "x1"],
         CPPFLAGS="$clutter_save_CPPFLAGS"
         LIBS="$clutter_save_LIBS"
 
-        x11_tests=yes
         BACKEND_PC_FILES="$BACKEND_PC_FILES $X11_PC_FILES"
         FLAVOUR_LIBS="$FLAVOUR_LIBS $X11_LIBS"
         FLAVOUR_CFLAGS="$FLAVOUR_CFLAGS $X11_CFLAGS"
@@ -701,38 +699,10 @@ AS_IF([test "x$SUPPORT_X11" = "x1"],
 )
 
 AM_CONDITIONAL([BUILD_XI2], [test "x$have_xinput2" = "xyes"])
-AM_CONDITIONAL([X11_TESTS], [test "x$x11_tests" = "xyes"])
 
 X11_EXTS=${X11_EXTS#* }
 
 AC_CACHE_SAVE
-
-dnl === Enable GDK-Pixbuf in tests ============================================
-
-m4_define([pixbuf_default], [yes])
-AC_ARG_ENABLE([gdk-pixbuf],
-              [AS_HELP_STRING([--enable-gdk-pixbuf=@<:@no/yes@:>@],
-                              [Enable tests using GDK-Pixbuf @<:@default=]pixbuf_default[@:>@])],
-              [enable_pixbuf=$enable_val],
-              [enable_pixbuf=pixbuf_default])
-
-AS_CASE([$enable_pixbuf],
-
-        [yes],
-        [
-          PKG_CHECK_MODULES([GDK_PIXBUF], [gdk-pixbuf-2.0])
-          AC_SUBST(GDK_PIXBUF_CFLAGS)
-          AC_SUBST(GDK_PIXBUF_LIBS)
-          pixbuf_tests=yes
-        ],
-
-        [no],
-        [
-          pixbuf_tests=no
-        ]
-)
-
-AM_CONDITIONAL([PIXBUF_TESTS], [test "x$pixbuf_tests" = "xyes"])
 
 dnl === Enable debug level ====================================================
 
@@ -883,81 +853,6 @@ CLUTTER_LIBS="$FLAVOUR_LIBS $CLUTTER_DEPS_LIBS $CLUTTER_DEPS_PRIVATE_LIBS $GLIB_
 AC_SUBST(CLUTTER_CFLAGS)
 AC_SUBST(CLUTTER_LIBS)
 
-dnl === Test coverage =========================================================
-
-AC_ARG_ENABLE([gcov],
-              [AS_HELP_STRING([--enable-gcov], [Enable gcov])],
-              [use_gcov=$enableval],
-              [use_gcov=no])
-
-AS_IF([test "x$use_gcov" = "xyes"],
-      [
-        dnl we need gcc:
-        AS_IF([test "$GCC" != "yes"], [AC_MSG_ERROR([GCC is required for --enable-gcov])])
-
-        dnl Check if ccache is being used
-        AC_CHECK_PROG(SHTOOL, shtool, shtool)
-        AS_CASE([`$SHTOOL path $CC`],
-                [*ccache*], [gcc_ccache=yes],
-                [gcc_ccache=no])
-
-        if test "$gcc_ccache" = "yes" && (test -z "$CCACHE_DISABLE" || test "$CCACHE_DISABLE" != "1"); then
-          AC_MSG_ERROR([ccache must be disabled when --enable-gcov option is used. You can disable ccache by setting environment variable CCACHE_DISABLE=1.])
-        fi
-
-        ltp_version_list="1.6 1.7 1.8 1.9 1.10"
-        AC_CHECK_PROG(LTP, lcov, lcov)
-        AC_CHECK_PROG(LTP_GENHTML, genhtml, genhtml)
-
-        if test "$LTP"; then
-          AC_CACHE_CHECK([for ltp version], clutter_cv_ltp_version,
-                         [
-                           clutter_cv_ltp_version=invalid
-                           ltp_version=`$LTP -v 2>/dev/null | $SED -e 's/^.* //'`
-                           for ltp_check_version in $ltp_version_list; do
-                             if test "$ltp_version" = "$ltp_check_version"; then
-                               clutter_cv_ltp_version="$ltp_check_version (ok)"
-                             fi
-                           done
-                         ])
-        else
-          ltp_msg="To enable code coverage reporting you must have one of the following LTP versions installed: $ltp_version_list"
-          AC_MSG_ERROR([$ltp_msg])
-        fi
-
-        case $clutter_cv_ltp_version in
-          ""|invalid[)]
-          ltp_msg="You must have one of the following versions of LTP: $ltp_version_list (found: $ltp_version)."
-          AC_MSG_ERROR([$ltp_msg])
-          LTP="exit 0;"
-          ;;
-        esac
-
-        if test -z "$LTP_GENHTML"; then
-          AC_MSG_ERROR([Could not find genhtml from the LTP package])
-        fi
-
-        AC_DEFINE(HAVE_GCOV, 1, [Whether you have gcov])
-
-        dnl Remove all optimization flags from CFLAGS
-        changequote({,})
-        CFLAGS=`echo "$CFLAGS" | $SED -e 's/-O[0-9]*//g'`
-        CLUTTER_CFLAGS=`echo "$CLUTTER_CFLAGS" | $SED -e 's/-O[0-9]*//g'`
-        changequote([,])
-
-        dnl Define the special gcc flags
-        CLUTTER_GCOV_CFLAGS="-O0 -fprofile-arcs -ftest-coverage"
-        CLUTTER_GCOV_LDADD="-lgcov"
-
-        AC_SUBST(CLUTTER_GCOV_CFLAGS)
-        AC_SUBST(CLUTTER_GCOV_LDADD)
-
-        CLUTTER_CFLAGS="$CLUTTER_CFLAGS $CLUTTER_GCOV_CFLAGS"
-        CLUTTER_LIBS="$CLUTTER_LIBS $CLUTTER_GCOV_LDADD"
-      ])
-
-AM_CONDITIONAL(ENABLE_GCOV, test "x$use_gcov" = "xyes")
-
 dnl === GObject-Introspection check ===========================================
 
 GOBJECT_INTROSPECTION_CHECK([gi_req_version])
@@ -972,21 +867,6 @@ AC_SUBST(GETTEXT_PACKAGE)
 AC_DEFINE_UNQUOTED([GETTEXT_PACKAGE],
                    ["$GETTEXT_PACKAGE"],
                    [The prefix for our gettext translation domains.])
-AS_ALL_LINGUAS
-
-dnl = Build optionals =========================================================
-
-dnl === Conformance test suite ================================================
-
-GLIB_TESTS
-
-AC_ARG_ENABLE([examples],
-              [AS_HELP_STRING([--disable-examples], [Whether examples should be built])],
-              [],
-              [enable_examples=yes])
-AM_CONDITIONAL(BUILD_EXAMPLES, [test "x$enable_examples" = "xyes"])
-
-dnl ===========================================================================
 
 AC_CONFIG_FILES([
 	Makefile
@@ -1001,16 +881,6 @@ AC_CONFIG_FILES([
 	clutter/clutter-$CLUTTER_API_VERSION.pc:clutter/clutter.pc.in
 
 	clutter/cally/cally-$CLUTTER_API_VERSION.pc:clutter/cally/cally.pc.in
-
-	tests/Makefile
-	tests/accessibility/Makefile
-	tests/conform/Makefile
-	tests/interactive/Makefile
-	tests/interactive/wrapper.sh
-	tests/micro-bench/Makefile
-	tests/performance/Makefile
-
-        examples/Makefile
 ])
 
 AC_OUTPUT
@@ -1032,21 +902,12 @@ echo ""
 echo " • Compiler options:"
 echo "        Clutter debug level: ${enable_debug}"
 echo "        Compiler flags: ${CFLAGS} ${MAINTAINER_CFLAGS}"
-echo "        Enable coverage tests: ${use_gcov}"
 echo "        Enable deprecated symbols: ${enable_deprecated}"
 
 # Miscellaneous
 echo ""
 echo " • Extra:"
 echo "        Build introspection data: ${enable_introspection}"
-if test "x$x11_tests" = "xyes"; then
-echo "        Build X11-specific tests: ${x11_tests}"
-fi
-if test "x$pixbuf_tests" = "xyes"; then
-echo "        Build tests using GDK-Pixbuf: ${pixbuf_tests}"
-fi
-echo "        Install test suites: ${enable_installed_tests}"
-echo "        Build examples: ${enable_examples}"
 
 # Clutter backend related flags
 echo ""
