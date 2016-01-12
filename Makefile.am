@@ -2,13 +2,13 @@ include $(top_srcdir)/build/autotools/Makefile.am.silent
 
 NULL =
 
-SUBDIRS = build clutter tests doc po
+SUBDIRS = build clutter tests po
 
 if BUILD_EXAMPLES
 SUBDIRS += examples
 endif
 
-DIST_SUBDIRS = clutter tests examples doc po build
+DIST_SUBDIRS = clutter tests examples po build
 
 # XXX - this is a massive hack to make autoreconf honour the ACLOCAL_FLAGS
 # that jhbuild sets while still retaining build/autotools as the authoritative
@@ -25,7 +25,7 @@ CLEANFILES = $(pcfiles)
 
 DISTCLEANFILES =
 
-DISTCHECK_CONFIGURE_FLAGS = --enable-gtk-doc --enable-maintainer-flags --enable-docs
+DISTCHECK_CONFIGURE_FLAGS = --enable-maintainer-flags
 
 # .release requires .changelog rules
 include $(top_srcdir)/build/autotools/Makefile.am.changelog
