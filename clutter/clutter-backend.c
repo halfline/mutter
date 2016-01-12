@@ -66,9 +66,6 @@
 #ifdef CLUTTER_INPUT_X11
 #include "x11/clutter-backend-x11.h"
 #endif
-#ifdef CLUTTER_INPUT_WIN32
-#include "win32/clutter-backend-win32.h"
-#endif
 #ifdef CLUTTER_INPUT_OSX
 #include "osx/clutter-backend-osx.h"
 #endif
@@ -517,11 +514,6 @@ _clutter_create_backend (void)
     retval = g_object_new (CLUTTER_TYPE_BACKEND_OSX, NULL);
   else
 #endif
-#ifdef CLUTTER_WINDOWING_WIN32
-  if (backend == NULL || backend == I_(CLUTTER_WINDOWING_WIN32))
-    retval = g_object_new (CLUTTER_TYPE_BACKEND_WIN32, NULL);
-  else
-#endif
 #ifdef CLUTTER_WINDOWING_GDK
   if (backend == NULL || backend == I_(CLUTTER_WINDOWING_GDK))
     retval = g_object_new (CLUTTER_TYPE_BACKEND_GDK, NULL);
@@ -569,14 +561,6 @@ clutter_backend_real_init_events (ClutterBackend *backend)
       (input_backend == NULL || input_backend == I_(CLUTTER_INPUT_OSX)))
     {
       _clutter_backend_osx_events_init (backend);
-    }
-  else
-#endif
-#ifdef CLUTTER_INPUT_WIN32
-  if (clutter_check_windowing_backend (CLUTTER_WINDOWING_WIN32) &&
-      (input_backend == NULL || input_backend == I_(CLUTTER_INPUT_WIN32)))
-    {
-      _clutter_backend_win32_events_init (backend);
     }
   else
 #endif

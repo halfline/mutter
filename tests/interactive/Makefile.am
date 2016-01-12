@@ -61,11 +61,7 @@ UNIT_TESTS += \
 	test-image.c
 endif
 
-if OS_WIN32
-SHEXT =
-else
 SHEXT = $(EXEEXT)
-endif
 
 # For convenience, this provides a way to easily run individual unit tests:
 wrappers: stamp-test-interactive
