@@ -61,22 +61,21 @@ meta_wayland_buffer_unref (MetaWaylandBuffer *buffer)
 }
 
 void
-meta_wayland_buffer_take_control (MetaWaylandBuffer *buffer)
+meta_wayland_buffer_add_attachment (MetaWaylandBuffer *buffer)
 {
-  if (buffer->accessible)
-    meta_fatal ("buffer control taken twice");
-
-  buffer->accessible = TRUE;
+  buffer->attachment_count++;
 }
 
 void
-meta_wayland_buffer_release_control (MetaWaylandBuffer *buffer)
+meta_wayland_buffer_remove_attachment (MetaWaylandBuffer *buffer)
 {
-  if (!buffer->accessible)
+  if (buffer->attachment_count < 1)
     meta_fatal ("buffer released when not in control");
 
-  wl_resource_queue_event (buffer->resource, WL_BUFFER_RELEASE);
-  buffer->accessible = FALSE;
+  buffer->attachment_count--;
+
+  if (buffer->attachment_count == 0)
+    wl_resource_queue_event (buffer->resource, WL_BUFFER_RELEASE);
 }
 
 MetaWaylandBuffer *
