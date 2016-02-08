@@ -434,6 +434,9 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
     }
 
   toplevel_surface_commit_pending_geometry (surface, pending);
+
+  if (pending->buffer && pending->buffer->copied_data)
+    meta_wayland_buffer_release_control (pending->buffer);
 }
 
 static void
@@ -679,9 +682,6 @@ apply_pending_state (MetaWaylandSurface      *surface,
 
   if (!cairo_region_is_empty (pending->damage))
     surface_process_damage (surface, pending->damage);
-
-  if (pending->buffer && pending->buffer->copied_data)
-    meta_wayland_buffer_release_control (pending->buffer);
 
   surface->offset_x += pending->dx;
   surface->offset_y += pending->dy;
