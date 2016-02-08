@@ -409,10 +409,10 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
           /* XXX: This is the common case. Recognize it to prevent
            * a warning. */
           if (pending->dx == 0 && pending->dy == 0)
-            return;
+            goto out;
 
           g_warning ("XXX: Attach-initiated move without a new geometry. This is unimplemented right now.");
-          return;
+          goto out;
         }
 
       meta_window_wayland_move_resize (window,
@@ -420,6 +420,10 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
                                        geom, pending->dx, pending->dy);
       surface->acked_configure_serial.set = FALSE;
     }
+
+out:
+  if (pending->newly_attached && pending->buffer && pending->buffer->copied_data)
+    meta_wayland_buffer_release_control (pending->buffer);
 }
 
 static void
@@ -662,9 +666,6 @@ apply_pending_state (MetaWaylandSurface      *surface,
 
   if (!cairo_region_is_empty (pending->damage))
     surface_process_damage (surface, pending->damage);
-
-  if (pending->buffer && pending->buffer->copied_data)
-    meta_wayland_buffer_release_control (pending->buffer);
 
   surface->offset_x += pending->dx;
   surface->offset_y += pending->dy;
