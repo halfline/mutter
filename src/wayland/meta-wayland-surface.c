@@ -172,6 +172,11 @@ surface_set_buffer (MetaWaylandSurface *surface,
   if (surface->buffer)
     {
       wl_list_remove (&surface->buffer_destroy_listener.link);
+      if (surface->buffer_claimed)
+        {
+          meta_wayland_buffer_release_control (buffer);
+          surface->buffer_claimed = TRUE;
+        }
       meta_wayland_buffer_unref (surface->buffer);
     }
 
@@ -180,6 +185,8 @@ surface_set_buffer (MetaWaylandSurface *surface,
   if (surface->buffer)
     {
       meta_wayland_buffer_ref (surface->buffer);
+      meta_wayland_buffer_take_control (surface->buffer);
+      surface->buffer_claimed = TRUE;
       wl_signal_add (&surface->buffer->destroy_signal, &surface->buffer_destroy_listener);
     }
 }
@@ -330,6 +337,17 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
   MetaWaylandSurface *surface =
     meta_wayland_surface_role_get_surface (surface_role);
   MetaWindow *window = surface->window;
+
+  if (pending->newly_attached && surface->buffer)
+    {
+      struct wl_shm_buffer *shm_buffer = wl_shm_buffer_get (surface->buffer->resource);
+
+      if (shm_buffer)
+        {
+          meta_wayland_buffer_release_control (surface->buffer);
+          surface->buffer_claimed = FALSE;
+        }
+    }
 
   queue_surface_actor_frame_callbacks (surface, pending);
 
@@ -587,7 +605,7 @@ static void
 apply_pending_state (MetaWaylandSurface      *surface,
                      MetaWaylandPendingState *pending)
 {
-  if (pending->newly_attached)
+  if (pending->newly_attached && pending->buffer != surface->buffer)
     {
       if (!surface->buffer && surface->window)
         meta_window_queue (surface->window, META_QUEUE_CALC_SHOWING);
@@ -596,7 +614,6 @@ apply_pending_state (MetaWaylandSurface      *surface,
 
       if (pending->buffer)
         {
-          meta_wayland_buffer_take_control (pending->buffer);
           CoglTexture *texture = meta_wayland_buffer_ensure_texture (pending->buffer);
           meta_surface_actor_wayland_set_texture (META_SURFACE_ACTOR_WAYLAND (surface->surface_actor), texture);
         }
@@ -607,9 +624,6 @@ apply_pending_state (MetaWaylandSurface      *surface,
 
   if (!cairo_region_is_empty (pending->damage))
     surface_process_damage (surface, pending->damage);
-
-  if (pending->buffer && pending->buffer->copied_data)
-    meta_wayland_buffer_release_control (pending->buffer);
 
   surface->offset_x += pending->dx;
   surface->offset_y += pending->dy;
