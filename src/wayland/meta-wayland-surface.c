@@ -435,8 +435,15 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
 
   toplevel_surface_commit_pending_geometry (surface, pending);
 
-  if (pending->buffer && pending->buffer->copied_data)
-    meta_wayland_buffer_release_control (pending->buffer);
+  if (pending->buffer)
+    {
+      struct wl_shm_buffer *shm_buffer = wl_shm_buffer_get (pending->buffer->resource);
+
+      /* Release the buffer right away, so the client can reuse it
+       */
+      if (shm_buffer)
+        meta_wayland_buffer_release_control (pending->buffer);
+    }
 }
 
 static void
