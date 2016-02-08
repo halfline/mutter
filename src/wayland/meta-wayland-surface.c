@@ -356,12 +356,12 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
       /* For wl_shell, it's equivalent to an unmap. Semantics
        * are poorly defined, so we can choose some that are
        * convenient for us. */
-      if (surface->buffer && !window)
+      if (pending->buffer && !window)
         {
           window = meta_window_wayland_new (meta_get_display (), surface);
           meta_wayland_surface_set_window (surface, window);
         }
-      else if (surface->buffer == NULL && window)
+      else if (pending->buffer == NULL && window)
         {
           destroy_window (surface);
           return;
@@ -369,7 +369,7 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
     }
   else
     {
-      if (surface->buffer == NULL)
+      if (pending->buffer == NULL)
         {
           /* XDG surfaces can't commit NULL buffers */
           wl_resource_post_error (surface->resource,
@@ -387,7 +387,7 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
     {
       MetaRectangle geom = { 0 };
 
-      CoglTexture *texture = surface->buffer->texture;
+      CoglTexture *texture = pending->buffer->texture;
       /* Update the buffer rect immediately. */
       window->buffer_rect.width = cogl_texture_get_width (texture);
       window->buffer_rect.height = cogl_texture_get_height (texture);
