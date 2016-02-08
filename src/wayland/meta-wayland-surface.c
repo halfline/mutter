@@ -442,7 +442,7 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
       /* Release the buffer right away, so the client can reuse it
        */
       if (shm_buffer)
-        meta_wayland_buffer_release_control (pending->buffer);
+        surface_set_buffer (surface, NULL);
     }
 }
 
@@ -678,7 +678,6 @@ apply_pending_state (MetaWaylandSurface      *surface,
 
       if (pending->buffer)
         {
-          meta_wayland_buffer_take_control (pending->buffer);
           CoglTexture *texture = meta_wayland_buffer_ensure_texture (pending->buffer);
           meta_surface_actor_wayland_set_texture (META_SURFACE_ACTOR_WAYLAND (surface->surface_actor), texture);
         }
