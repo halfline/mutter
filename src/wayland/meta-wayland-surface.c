@@ -336,6 +336,60 @@ queue_surface_actor_frame_callbacks (MetaWaylandSurface      *surface,
 }
 
 static void
+toplevel_surface_commit_pending_geometry (MetaWaylandSurface      *surface,
+                                          MetaWaylandPendingState *pending)
+{
+  MetaRectangle geom = { 0 };
+  CoglTexture *texture = pending->buffer->texture;
+  MetaWindow *window = surface->window;
+
+  /* Update the state of the MetaWindow if we still have one. We might not if
+   * the window was unmanaged (for example popup destroyed, NULL buffer attached to
+   * wl_shell_surface wl_surface, xdg_surface object was destroyed, etc).
+   */
+  if (!window || window->client_type != META_WINDOW_CLIENT_TYPE_WAYLAND)
+    return;
+
+  /* Update the buffer rect immediately. */
+  window->buffer_rect.width = cogl_texture_get_width (texture);
+  window->buffer_rect.height = cogl_texture_get_height (texture);
+
+  if (pending->has_new_geometry)
+    {
+      /* If we have new geometry, use it. */
+      geom = pending->new_geometry;
+      surface->has_set_geometry = TRUE;
+    }
+  else if (!surface->has_set_geometry)
+    {
+      /* If the surface has never set any geometry, calculate
+       * a default one unioning the surface and all subsurfaces together. */
+      calculate_surface_window_geometry (surface, &geom, 0, 0);
+    }
+  else
+    {
+      /* Otherwise, keep the geometry the same. */
+
+      /* XXX: We don't store the geometry in any consistent place
+       * right now, so we can't re-fetch it. We should change
+       * meta_window_wayland_move_resize. */
+
+      /* XXX: This is the common case. Recognize it to prevent
+       * a warning. */
+      if (pending->dx == 0 && pending->dy == 0)
+        return;
+
+      g_warning ("XXX: Attach-initiated move without a new geometry. This is unimplemented right now.");
+      return;
+    }
+
+  meta_window_wayland_move_resize (window,
+                                   &surface->acked_configure_serial,
+                                   geom, pending->dx, pending->dy);
+  surface->acked_configure_serial.set = FALSE;
+}
+
+static void
 toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
                          MetaWaylandPendingState *pending)
 {
@@ -379,53 +433,7 @@ toplevel_surface_commit (MetaWaylandSurfaceRole  *surface_role,
         }
     }
 
-  /* Update the state of the MetaWindow if we still have one. We might not if
-   * the window was unmanaged (for example popup destroyed, NULL buffer attached to
-   * wl_shell_surface wl_surface, xdg_surface object was destroyed, etc).
-   */
-  if (window && window->client_type == META_WINDOW_CLIENT_TYPE_WAYLAND)
-    {
-      MetaRectangle geom = { 0 };
-
-      CoglTexture *texture = pending->buffer->texture;
-      /* Update the buffer rect immediately. */
-      window->buffer_rect.width = cogl_texture_get_width (texture);
-      window->buffer_rect.height = cogl_texture_get_height (texture);
-
-      if (pending->has_new_geometry)
-        {
-          /* If we have new geometry, use it. */
-          geom = pending->new_geometry;
-          surface->has_set_geometry = TRUE;
-        }
-      else if (!surface->has_set_geometry)
-        {
-          /* If the surface has never set any geometry, calculate
-           * a default one unioning the surface and all subsurfaces together. */
-          calculate_surface_window_geometry (surface, &geom, 0, 0);
-        }
-      else
-        {
-          /* Otherwise, keep the geometry the same. */
-
-          /* XXX: We don't store the geometry in any consistent place
-           * right now, so we can't re-fetch it. We should change
-           * meta_window_wayland_move_resize. */
-
-          /* XXX: This is the common case. Recognize it to prevent
-           * a warning. */
-          if (pending->dx == 0 && pending->dy == 0)
-            return;
-
-          g_warning ("XXX: Attach-initiated move without a new geometry. This is unimplemented right now.");
-          return;
-        }
-
-      meta_window_wayland_move_resize (window,
-                                       &surface->acked_configure_serial,
-                                       geom, pending->dx, pending->dy);
-      surface->acked_configure_serial.set = FALSE;
-    }
+  toplevel_surface_commit_pending_geometry (surface, pending);
 }
 
 static void
