@@ -1032,7 +1032,11 @@ meta_wayland_pointer_set_cursor_surface (MetaWaylandPointer *pointer,
   if (prev_cursor_surface != cursor_surface)
     {
       if (prev_cursor_surface)
-        meta_wayland_surface_update_outputs (prev_cursor_surface);
+        {
+          if (prev_cursor_surface->buffer)
+            meta_wayland_buffer_unref_use_count (prev_cursor_surface->buffer);
+          meta_wayland_surface_update_outputs (prev_cursor_surface);
+        }
       meta_wayland_pointer_update_cursor_surface (pointer);
     }
 }
@@ -1278,7 +1282,11 @@ cursor_surface_role_commit (MetaWaylandSurfaceRole  *surface_role,
   meta_wayland_surface_queue_pending_state_frame_callbacks (surface, pending);
 
   if (pending->newly_attached)
-    update_cursor_sprite_texture (surface);
+    {
+      if (surface->buffer)
+        meta_wayland_buffer_ref_use_count (surface->buffer);
+      update_cursor_sprite_texture (surface);
+    }
 }
 
 static gboolean

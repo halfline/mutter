@@ -694,9 +694,6 @@ apply_pending_state (MetaWaylandSurface      *surface,
   if (!cairo_region_is_empty (pending->damage))
     surface_process_damage (surface, pending->damage);
 
-  if (release_new_buffer)
-    surface_stop_using_buffer (surface);
-
   surface->offset_x += pending->dx;
   surface->offset_y += pending->dy;
 
@@ -735,6 +732,9 @@ apply_pending_state (MetaWaylandSurface      *surface,
                            &pending->frame_callback_list);
       wl_list_init (&pending->frame_callback_list);
     }
+
+  if (release_new_buffer)
+    surface_stop_using_buffer (surface);
 
   g_signal_emit (pending,
                  pending_state_signals[PENDING_STATE_SIGNAL_APPLIED],
