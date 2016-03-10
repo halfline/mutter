@@ -395,20 +395,6 @@ if test "$enable_compile_warnings" != no ; then
 fi
 changequote([,])dnl
 
-AC_CONFIG_FILES([
-Makefile
-data/Makefile
-doc/Makefile
-doc/man/Makefile
-src/Makefile
-src/libmutter.pc
-src/compositor/plugins/Makefile
-src/meta/meta-version.h
-po/Makefile.in
-])
-
-AC_OUTPUT
-
 if test x$enable_verbose_mode = xno; then
         echo "*** WARNING WARNING WARNING WARNING WARNING"
         echo "*** Building without verbose mode"
@@ -443,3 +429,410 @@ if expr $MUTTER_MINOR_VERSION % 2 > /dev/null ; then
 else
    echo "This is the stable branch of mutter"
 fi
+
+m4_define([clutter_major_version], [1])
+m4_define([clutter_minor_version], [25])
+m4_define([clutter_micro_version], [7])
+m4_define([clutter_interface_age], [0])
+m4_define([clutter_binary_age], [m4_eval(100 * clutter_minor_version + clutter_micro_version)])
+m4_define([clutter_release_status],
+          [m4_if(m4_eval(clutter_micro_version % 2), [1], [git],
+                 [m4_if(m4_eval(clutter_minor_version % 2), [1], [snapshot],
+                                                                 [release])])])
+
+m4_define([clutter_version], [clutter_major_version.clutter_minor_version.clutter_micro_version])
+
+m4_define([clutter_api_version], [1.0])
+
+AC_SUBST([CLUTTER_MAJOR_VERSION],  [clutter_major_version])
+AC_SUBST([CLUTTER_MINOR_VERSION],  [clutter_minor_version])
+AC_SUBST([CLUTTER_MICRO_VERSION],  [clutter_micro_version])
+AC_SUBST([CLUTTER_VERSION],        [clutter_version])
+AC_SUBST([CLUTTER_API_VERSION],    [clutter_api_version])
+AC_SUBST([CLUTTER_API_VERSION_AM], [$CLUTTER_MAJOR_VERSION\_0])
+AC_SUBST([CLUTTER_RELEASE_STATUS], [clutter_release_status])
+
+m4_define([lt_current],  [m4_eval(100 * clutter_minor_version + clutter_micro_version - clutter_interface_age)])
+m4_define([lt_revision], [clutter_interface_age])
+m4_define([lt_age],      [m4_eval(clutter_binary_age - clutter_interface_age)])
+CLUTTER_LT_CURRENT=lt_current
+CLUTTER_LT_REV=lt_revision
+CLUTTER_LT_AGE=lt_age
+CLUTTER_LT_VERSION="$CLUTTER_LT_CURRENT:$CLUTTER_LT_REV:$CLUTTER_LT_AGE"
+CLUTTER_LT_LDFLAGS="-version-info $CLUTTER_LT_VERSION"
+AC_SUBST([CLUTTER_LT_CURRENT],  [lt_current])
+AC_SUBST([CLUTTER_LT_REVISION], [lt_revision])
+AC_SUBST([CLUTTER_LT_VERSION],  [$CLUTTER_LT_VERSION])
+
+AC_DEFINE([OS_LINUX], [1], [Define to 1 if building for Linux])
+
+AC_SUBST(CLUTTER_LT_LDFLAGS)
+
+m4_define([glib_req_version],           [2.44.0])
+m4_define([cogl_req_version],           [1.21.2])
+m4_define([json_glib_req_version],      [0.12.0])
+m4_define([atk_req_version],            [2.5.3])
+m4_define([cairo_req_version],          [1.14.0])
+m4_define([pango_req_version],          [1.30])
+m4_define([gi_req_version],             [1.39.0])
+m4_define([xcomposite_req_version],     [0.4])
+m4_define([gdk_req_version],            [3.3.18])
+m4_define([libinput_req_version],       [0.19.0])
+m4_define([libudev_req_version],        [136])
+
+AC_SUBST([GLIB_REQ_VERSION],       [glib_req_version])
+AC_SUBST([COGL_REQ_VERSION],       [cogl_req_version])
+AC_SUBST([JSON_GLIB_REQ_VERSION],  [json_glib_req_version])
+AC_SUBST([ATK_REQ_VERSION],        [atk_req_version])
+AC_SUBST([CAIRO_REQ_VERSION],      [cairo_req_version])
+AC_SUBST([PANGO_REQ_VERSION],      [pango_req_version])
+AC_SUBST([GI_REQ_VERSION],         [gi_req_version])
+AC_SUBST([XCOMPOSITE_REQ_VERSION], [xcomposite_req_version])
+AC_SUBST([GDK_REQ_VERSION],        [gdk_req_version])
+AC_SUBST([LIBINPUT_REQ_VERSION],   [libinput_req_version])
+AC_SUBST([LIBUDEV_REQ_VERSION],    [libudev_req_version])
+
+FLAVOUR_LIBS=""
+FLAVOUR_CFLAGS=""
+CLUTTER_BACKENDS=""
+CLUTTER_INPUT_BACKENDS=""
+CLUTTER_CONFIG_DEFINES=
+
+experimental_backend=no
+experimental_input_backend=no
+
+# base dependencies for core
+CLUTTER_BASE_PC_FILES="cogl-1.0 >= $COGL_REQ_VERSION cogl-path-1.0 cairo-gobject >= $CAIRO_REQ_VERSION gio-2.0 >= glib_req_version atk >= $ATK_REQ_VERSION pangocairo >= $PANGO_REQ_VERSION cogl-pango-1.0 json-glib-1.0 >= $JSON_GLIB_REQ_VERSION"
+
+# private base dependencies
+CLUTTER_BASE_PC_FILES_PRIVATE=""
+
+# backend specific pkg-config files
+BACKEND_PC_FILES="x11 egl libinput"
+
+# private backend specific dependencies
+BACKEND_PC_FILES_PRIVATE=""
+
+dnl === Clutter windowing system backend ======================================
+
+CLUTTER_BACKENDS="$CLUTTER_BACKENDS x11"
+CLUTTER_INPUT_BACKENDS="$CLUTTER_INPUT_BACKENDS x11"
+
+SUPPORT_X11=1
+SUPPORT_GLX=1
+SUPPORT_COGL=1
+
+# we use fontconfig API and pango-ft2 when the fontconfig
+# configuration changes; we don't expose any API for this
+# so we add pango-ft2 to the private Requires.
+PKG_CHECK_EXISTS([pangoft2],
+                 [
+                         AC_DEFINE([HAVE_PANGO_FT2], [1], [Supports PangoFt2])
+                         BACKEND_PC_FILES_PRIVATE="$BACKEND_PC_FILES_PRIVATE pangoft2"
+                 ],
+                 [])
+
+PKG_CHECK_EXISTS([wayland-server],
+                 [BACKEND_PC_FILES="$BACKEND_PC_FILES wayland-server"], [])
+
+SUPPORT_WAYLAND_COMPOSITOR=1
+SUPPORT_COGL=1
+
+CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
+#define CLUTTER_HAS_WAYLAND_COMPOSITOR_SUPPORT 1"
+
+CLUTTER_BACKENDS="$CLUTTER_BACKENDS egl"
+
+SUPPORT_EGL=1
+SUPPORT_COGL=1
+SUPPORT_EVDEV=1
+
+AC_DEFINE([CLUTTER_EGL_BACKEND_GENERIC], [1], [Use Generic EGL backend])
+AC_DEFINE([OS_LINUX], [1], [Define to 1 if building for Linux])
+
+CLUTTER_INPUT_BACKENDS="$CLUTTER_INPUT_BACKENDS evdev"
+BACKEND_PC_FILES_PRIVATE="$BACKEND_PC_FILES_PRIVATE libudev >= $LIBUDEV_REQ_VERSION libinput >= $LIBINPUT_REQ_VERSION xkbcommon"
+
+dnl Instead of using AM_CFLAGS to ensure
+dnl COGL_ENABLE_EXPERIMENTAL_2_0_API is defined while compiling clutter
+dnl and cogl code we use a define in config.h instead. This helps ensure
+dnl other tools such as glib-mkenums and gir-scanner don't end up
+dnl using the define also.
+AC_DEFINE([COGL_ENABLE_EXPERIMENTAL_2_0_API], [1], [Can use Cogl 2.0 API internally])
+AC_DEFINE_UNQUOTED([CLUTTER_DRIVERS], ["*"], [List of Cogl drivers])
+
+dnl strip leading spaces
+CLUTTER_BACKENDS=${CLUTTER_BACKENDS#* }
+AC_SUBST(CLUTTER_BACKENDS)
+
+CLUTTER_INPUT_BACKENDS=${CLUTTER_INPUT_BACKENDS#* }
+AC_SUBST(CLUTTER_INPUT_BACKENDS)
+
+AC_CACHE_SAVE
+
+dnl === Clutter configuration =================================================
+
+# windowing systems
+AS_IF([test "x$SUPPORT_X11" = "x1"],
+      [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
+#define CLUTTER_WINDOWING_X11 \"x11\"
+#define CLUTTER_INPUT_X11 \"x11\""])
+AS_IF([test "x$SUPPORT_GLX" = "x1"],
+      [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
+#define CLUTTER_WINDOWING_GLX \"glx\""])
+AS_IF([test "x$SUPPORT_EGL" = "x1"],
+      [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
+#define CLUTTER_WINDOWING_EGL \"eglnative\""])
+AS_IF([test "x$SUPPORT_EVDEV" = "x1"],
+      [CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
+#define CLUTTER_INPUT_EVDEV \"evdev\""])
+
+# the 'null' input backend is special
+CLUTTER_CONFIG_DEFINES="$CLUTTER_CONFIG_DEFINES
+#define CLUTTER_INPUT_NULL \"null\""
+
+AC_SUBST([CLUTTER_CONFIG_DEFINES])
+
+dnl === Clutter substitutions kept for backwards compatibility ================
+AC_SUBST([CLUTTER_WINSYS],       [deprecated])
+AC_SUBST([CLUTTER_WINSYS_BASE],  [deprecated])
+AC_SUBST([CLUTTER_STAGE_TYPE],   [deprecated])
+AC_SUBST([CLUTTER_SONAME_INFIX], [deprecated])
+AC_SUBST([CLUTTER_FLAVOUR],      [deprecated])
+AC_SUBST([CLUTTER_COGL],         [deprecated])
+AC_SUBST([COGL_DRIVER],          [deprecated])
+
+dnl === X11 checks, only for X11-based backends ===============================
+X11_PC_FILES=""
+X11_EXTS=""
+
+AS_IF([test "x$SUPPORT_X11" = "x1"],
+      [
+        # base X11 includes and libraries
+        AC_MSG_CHECKING([for X11])
+
+        # start with pkg-config
+        PKG_CHECK_EXISTS([x11], [have_x11=yes], [have_x11=no])
+        AS_IF([test "x$have_x11" = "xyes"],
+              [
+                X11_PC_FILES="x11"
+
+                # we actually need to ask for CFLAGS and LIBS
+                X11_CFLAGS=`$PKG_CONFIG --cflags $X11_PC_FILES`
+                X11_LIBS=`$PKG_CONFIG --libs $X11_PC_FILES`
+
+                AC_MSG_RESULT([found])
+              ],
+              [
+                # no pkg-config, let's go old school
+                AC_PATH_X
+
+                AS_IF([test "x$no_x" = "xyes"],
+                      [AC_MSG_ERROR([No X11 Libraries found])],
+                      [
+                        AS_IF([test "x$x_includes" != "xNONE" && test -n "$x_includes"],
+                              [X11_CFLAGS=-I`echo $x_includes | sed -e "s/:/ -I/g"`])
+
+                        AS_IF([test "x$x_libraries" != "xNONE" && test -n "$x_libraries"],
+                              [X11_LIBS=-L`echo $x_libraries | sed -e "s/:/ -L/g"`])
+
+                        AC_MSG_RESULT([found])
+                      ]
+                )
+              ]
+        )
+
+        # XEXT (required)
+        AC_MSG_CHECKING([for XEXT extension])
+        PKG_CHECK_EXISTS([xext], [have_xext=yes], [have_xext=no])
+        AS_IF([test "x$have_xext" = "xyes"],
+              [
+                AC_DEFINE(HAVE_XEXT, [1], [Define to 1 if we have the XEXT X extension])
+
+                X11_LIBS="$X11_LIBS -lXext"
+                X11_PC_FILES="$X11_PC_FILES xext"
+                X11_EXTS="$X11_EXTS xext"
+
+                AC_MSG_RESULT([found])
+              ],
+              [AC_MSG_ERROR([Not found])]
+        )
+
+        # XDAMAGE (required)
+        AC_MSG_CHECKING([for XDAMAGE extension])
+        PKG_CHECK_EXISTS([xdamage], [have_xdamage=yes], [have_xdamage=no])
+        AS_IF([test "x$have_xdamage" = "xyes"],
+              [
+                AC_DEFINE(HAVE_XDAMAGE, [1], [Define to 1 if we have the XDAMAGE X extension])
+
+                X11_LIBS="$X11_LIBS -lXdamage"
+                X11_PC_FILES="$X11_PC_FILES xdamage"
+                X11_EXTS="$X11_EXTS xdamage"
+
+                AC_MSG_RESULT([found])
+              ],
+              [AC_MSG_ERROR([not found])]
+        )
+
+        # XCOMPOSITE (optional)
+        AC_MSG_CHECKING([for XCOMPOSITE extension >= $XCOMPOSITE_REQ_VERSION])
+        PKG_CHECK_EXISTS([xcomposite >= $XCOMPOSITE_REQ_VERSION], [have_xcomposite=yes], [have_xcomposite=no])
+        AS_IF([test "x$have_xcomposite" = "xyes"],
+              [
+                AC_DEFINE(HAVE_XCOMPOSITE, [1], [Define to 1 if we have the XCOMPOSITE X extension])
+
+                X11_LIBS="$X11_LIBS -lXcomposite"
+                X11_PC_FILES="$X11_PC_FILES xcomposite >= $XCOMPOSITE_REQ_VERSION"
+                X11_EXTS="$X11_EXTS xcomposite"
+
+                AC_MSG_RESULT([found])
+              ],
+              [AC_MSG_ERROR([not found])]
+        )
+
+        # X Generic Extensions (optional)
+        clutter_save_CPPFLAGS="$CPPFLAGS"
+        CPPFLAGS="$CPPFLAGS $X11_CFLAGS"
+
+        clutter_save_LIBS="$LIBS"
+        LIBS="$LIBS $X11_LIBS"
+
+        have_xge=no
+        AC_CHECK_FUNC([XGetEventData],
+                      [
+                        AC_DEFINE([HAVE_XGE], [1], [Define to 1 if X Generic Extensions is available])
+                        have_xge=yes
+                        X11_EXTS="$X11_EXTS xge"
+                      ])
+
+        CPPFLAGS="$clutter_save_CPPFLAGS"
+        LIBS="$clutter_save_LIBS"
+
+        # XI (optional)
+        AC_ARG_ENABLE([xinput],
+                      [AS_HELP_STRING([--enable-xinput], [Use the XI X extension])],
+                      [],
+                      [enable_xinput=yes])
+
+        AS_IF([test "x$enable_xinput" = "xyes"],
+              [
+                PKG_CHECK_EXISTS([xi], [have_xinput=yes], [have_xinput=no])
+              ],
+              [
+                have_xinput=no
+              ])
+
+        AS_CASE([$have_xinput],
+
+                [yes],
+                [
+                  AC_CHECK_HEADERS([X11/extensions/XInput2.h],
+                                   [
+                                     have_xinput2=yes
+                                     AC_DEFINE([HAVE_XINPUT_2],
+                                               [1],
+                                               [Define to 1 if XI2 is available])
+                                   ])
+
+                  clutter_save_LIBS="$LIBS"
+                  LIBS="$LIBS -lXi"
+
+                  AC_CHECK_FUNC([XIAllowTouchEvents],
+                                [
+                                  AC_CHECK_MEMBER([XIScrollClassInfo.number],
+                                                  [
+                                                    have_xinput_2_2=yes
+                                                    AC_DEFINE([HAVE_XINPUT_2_2], [1], [Define to 1 if XInput 2.2 is available])
+                                                  ],
+                                                  [have_xinput_2_2=no],
+                                                  [[#include <X11/extensions/XInput2.h>]])])
+
+                  LIBS="$clutter_save_LIBS"
+
+                  X11_LIBS="$X11_LIBS $XINPUT_LIBS"
+                  X11_PC_FILES="$X11_PC_FILES xi"
+
+                  AS_IF([test "x$have_xinput_2_2" = "xyes"],
+                        [X11_EXTS="$X11_EXTS xi2.2"],
+                        [X11_EXTS="$X11_EXTS xi2.0"])
+                ],
+
+                [no],
+                [have_xinput2=no],
+
+                [*],
+                [AC_MSG_ERROR([Invalid argument for --enable-xinput])]
+        )
+
+        # XKB
+        clutter_save_CPPFLAGS="$CPPFLAGS"
+        CPPFLAGS="$CPPFLAGS $X11_CFLAGS"
+
+        clutter_save_LIBS="$LIBS"
+        LIBS="$LIBS $X11_LIBS"
+
+        have_xkb=no
+        AC_CHECK_FUNC([XkbQueryExtension],
+                      [
+                        AC_DEFINE(HAVE_XKB, 1, [Define to use XKB extension])
+                        have_xkb=yes
+
+                        X11_EXTS="$X11_EXTS xkb"
+                      ])
+
+        CPPFLAGS="$clutter_save_CPPFLAGS"
+        LIBS="$clutter_save_LIBS"
+
+        BACKEND_PC_FILES="$BACKEND_PC_FILES $X11_PC_FILES"
+        FLAVOUR_LIBS="$FLAVOUR_LIBS $X11_LIBS"
+        FLAVOUR_CFLAGS="$FLAVOUR_CFLAGS $X11_CFLAGS"
+      ]
+)
+
+AM_CONDITIONAL([BUILD_XI2], [test "x$have_xinput2" = "xyes"])
+
+X11_EXTS=${X11_EXTS#* }
+
+# strip leading space
+BACKEND_PC_FILES=${BACKEND_PC_FILES#* }
+
+# public dependencies, will fill the Requires: field of clutter.pc
+CLUTTER_REQUIRES="$CLUTTER_BASE_PC_FILES $BACKEND_PC_FILES"
+PKG_CHECK_MODULES(CLUTTER_DEPS, [$CLUTTER_REQUIRES])
+
+# private dependencies, will fill the Requires.private: field of clutter.pc
+AS_IF([test "x$CLUTTER_BASE_PC_FILES_PRIVATE" = "x" && test "x$BACKEND_PC_FILES_PRIVATE" = "x"],
+      [
+        CLUTTER_REQUIRES_PRIVATE=""
+        CLUTTER_DEPS_PRIVATE_CFLAGS=""
+        CLUTTER_DEPS_PRIVATE_LIBS=""
+      ],
+      [
+        CLUTTER_REQUIRES_PRIVATE="$CLUTTER_BASE_PC_FILES_PRIVATE $BACKEND_PC_FILES_PRIVATE"
+        PKG_CHECK_MODULES(CLUTTER_DEPS_PRIVATE, [$CLUTTER_REQUIRES_PRIVATE])
+      ])
+
+AC_SUBST(CLUTTER_REQUIRES)
+AC_SUBST(CLUTTER_REQUIRES_PRIVATE)
+
+CLUTTER_CFLAGS="$FLAVOUR_CFLAGS $CLUTTER_DEPS_CFLAGS $CLUTTER_DEPS_PRIVATE_CFLAGS $GLIB_CFLAGS"
+CLUTTER_LIBS="$FLAVOUR_LIBS $CLUTTER_DEPS_LIBS $CLUTTER_DEPS_PRIVATE_LIBS $GLIB_LIBS"
+AC_SUBST(CLUTTER_CFLAGS)
+AC_SUBST(CLUTTER_LIBS)
+
+AC_CONFIG_FILES([
+Makefile
+data/Makefile
+doc/Makefile
+doc/man/Makefile
+src/Makefile
+src/libmutter.pc
+src/compositor/plugins/Makefile
+src/clutter/Makefile
+src/clutter/clutter-config.h
+src/clutter/clutter-version.h
+src/meta/meta-version.h
+po/Makefile.in
+])
+
+AC_OUTPUT
