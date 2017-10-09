@@ -356,6 +356,107 @@ change_x_device_speed (ClutterInputDevice *device,
   XFreeFeedbackList (states);
 }
 
+/* Ensure that syndaemon dies together with us, to avoid running several of
+ * them */
+static void
+setup_syndaemon (gpointer user_data)
+{
+#ifdef __linux
+  prctl (PR_SET_PDEATHSIG, SIGHUP);
+#endif
+}
+
+static gboolean
+have_program_in_path (const char *name)
+{
+  gchar *path;
+  gboolean result;
+
+  path = g_find_program_in_path (name);
+  result = (path != NULL);
+  g_free (path);
+  return result;
+}
+
+static void
+syndaemon_died (GPid     pid,
+                gint     status,
+                gpointer user_data)
+{
+  MetaInputSettingsX11 *settings_x11 = META_INPUT_SETTINGS_X11 (user_data);
+  MetaInputSettingsX11Private *priv =
+    meta_input_settings_x11_get_instance_private (settings_x11);
+  GError *error = NULL;
+
+  if (!g_spawn_check_exit_status (status, &error))
+    {
+      if ((WIFSIGNALED (status) && WTERMSIG (status) != SIGHUP) ||
+          error->domain == G_SPAWN_EXIT_ERROR)
+        g_warning ("Syndaemon exited unexpectedly: %s", error->message);
+      g_error_free (error);
+    }
+
+  g_spawn_close_pid (pid);
+  priv->syndaemon_spawned = FALSE;
+}
+
+static void
+set_synaptics_disable_w_typing (MetaInputSettings *settings,
+                                gboolean           state)
+{
+  MetaInputSettingsX11 *settings_x11 = META_INPUT_SETTINGS_X11 (settings);
+  MetaInputSettingsX11Private *priv =
+    meta_input_settings_x11_get_instance_private (settings_x11);
+
+  if (state)
+    {
+      GError *error = NULL;
+      GPtrArray *args;
+
+      if (priv->syndaemon_spawned)
+        return;
+
+      if (!have_program_in_path ("syndaemon"))
+        return;
+
+      args = g_ptr_array_new ();
+
+      g_ptr_array_add (args, "syndaemon");
+      g_ptr_array_add (args, "-i");
+      g_ptr_array_add (args, "1.0");
+      g_ptr_array_add (args, "-t");
+      g_ptr_array_add (args, "-K");
+      g_ptr_array_add (args, "-R");
+      g_ptr_array_add (args, NULL);
+
+      /* we must use G_SPAWN_DO_NOT_REAP_CHILD to avoid
+       * double-forking, otherwise syndaemon will immediately get
+       * killed again through (PR_SET_PDEATHSIG when the intermediate
+       * process dies */
+      g_spawn_async (g_get_home_dir (), (char **) args->pdata, NULL,
+                     G_SPAWN_SEARCH_PATH|G_SPAWN_DO_NOT_REAP_CHILD, setup_syndaemon, NULL,
+                     &priv->syndaemon_pid, &error);
+
+      priv->syndaemon_spawned = (error == NULL);
+      g_ptr_array_free (args, TRUE);
+
+      if (error)
+        {
+          g_warning ("Failed to launch syndaemon: %s", error->message);
+          g_error_free (error);
+        }
+      else
+        {
+          g_child_watch_add (priv->syndaemon_pid, syndaemon_died, settings);
+        }
+    }
+  else if (priv->syndaemon_spawned)
+    {
+      kill (priv->syndaemon_pid, SIGHUP);
+      priv->syndaemon_spawned = FALSE;
+    }
+}
+
 static void
 change_x_device_scroll_button (ClutterInputDevice *device,
                                guint               button)
