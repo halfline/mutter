@@ -222,6 +222,7 @@ change_synaptics_tap_left_handed (ClutterInputDevice *device,
   buttons[0] = left_handed ? 3 : 1;
   buttons[2] = left_handed ? 1 : 3;
   XSetDeviceButtonMapping (xdisplay, xdevice, buttons, n_buttons);
+  g_free (buttons);
 
   if (display && meta_error_trap_pop_with_return (display))
     {
