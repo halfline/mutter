@@ -356,6 +356,23 @@ change_x_device_speed (ClutterInputDevice *device,
   XFreeFeedbackList (states);
 }
 
+static void
+change_x_device_scroll_button (ClutterInputDevice *device,
+                               guint               button)
+{
+  guchar value;
+
+  value = button > 0 ? 1 : 0;
+  change_property (device, "Evdev Wheel Emulation",
+                   XA_INTEGER, 8, &value, 1);
+  if (button > 0)
+    {
+      value = button;
+      change_property (device, "Evdev Wheel Emulation Button",
+                       XA_INTEGER, 8, &value, 1);
+    }
+}
+
 /* Ensure that syndaemon dies together with us, to avoid running several of
  * them */
 static void
