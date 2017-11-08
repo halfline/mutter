@@ -1486,10 +1486,11 @@ _clutter_stage_do_pick_on_view (ClutterStage     *stage,
                 priv->viewport[1] * fb_scale - viewport_offset_y,
                 priv->viewport[2] * fb_scale,
                 priv->viewport[3] * fb_scale);
-  cogl_set_viewport (priv->viewport[0] * fb_scale - viewport_offset_x,
-                     priv->viewport[1] * fb_scale - viewport_offset_y,
-                     priv->viewport[2] * fb_scale,
-                     priv->viewport[3] * fb_scale);
+  cogl_framebuffer_set_viewport (fb,
+                                 priv->viewport[0] * fb_scale - viewport_offset_x,
+                                 priv->viewport[1] * fb_scale - viewport_offset_y,
+                                 priv->viewport[2] * fb_scale,
+                                 priv->viewport[3] * fb_scale);
 
   read_x = dirty_x * fb_scale;
   read_y = dirty_y * fb_scale;
