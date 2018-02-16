@@ -8419,3 +8419,10 @@ meta_window_shortcuts_inhibited (MetaWindow         *window,
 {
   return META_WINDOW_GET_CLASS (window)->shortcuts_inhibited (window, source);
 }
+
+void
+meta_window_set_frozen (MetaWindow *window,
+                        gboolean    frozen)
+{
+  META_WINDOW_GET_CLASS (window)->set_frozen (window, frozen);
+}
