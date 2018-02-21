@@ -61,6 +61,11 @@ struct _MetaMonitorManagerXrandr
   XRRScreenResources *resources;
   int rr_event_base;
   int rr_error_base;
+
+  guint logind_watch_id;
+  guint logind_signal_sub_id;
+
+  gboolean need_hardware_poll;
   gboolean has_randr15;
 
   xcb_timestamp_t last_xrandr_set_timestamp;
@@ -787,8 +792,15 @@ meta_monitor_manager_xrandr_read_current (MetaMonitorManager *manager)
   manager->screen_width = WidthOfScreen (screen);
   manager->screen_height = HeightOfScreen (screen);
 
-  resources = XRRGetScreenResourcesCurrent (manager_xrandr->xdisplay,
-					    DefaultRootWindow (manager_xrandr->xdisplay));
+  if (manager_xrandr->need_hardware_poll)
+    {
+      resources = XRRGetScreenResources (manager_xrandr->xdisplay,
+                                         DefaultRootWindow (manager_xrandr->xdisplay));
+      manager_xrandr->need_hardware_poll = FALSE;
+    }
+  else
+    resources = XRRGetScreenResourcesCurrent (manager_xrandr->xdisplay,
+                                              DefaultRootWindow (manager_xrandr->xdisplay));
   if (!resources)
     return;
 
@@ -1910,6 +1922,115 @@ meta_monitor_manager_xrandr_get_default_layout_mode (MetaMonitorManager *manager
   return META_LOGICAL_MONITOR_LAYOUT_MODE_PHYSICAL;
 }
 
+static gboolean
+is_xvnc (MetaMonitorManager *manager)
+{
+  unsigned int i;
+
+  for (i = 0; i < manager->n_outputs; ++i)
+    if (g_str_has_prefix (manager->outputs[i].name, "VNC-"))
+      return TRUE;
+
+  return FALSE;
+}
+
+static void
+meta_monitor_manager_xrandr_update (MetaMonitorManagerXrandr *manager_xrandr)
+{
+  MetaMonitorManager *manager = META_MONITOR_MANAGER (manager_xrandr);
+  gboolean is_hotplug;
+  gboolean is_our_configuration;
+  unsigned int timestamp;
+
+  meta_monitor_manager_read_current_state (manager);
+
+  timestamp = manager_xrandr->resources->timestamp;
+  if (is_xvnc (manager))
+    timestamp += 100;
+
+  is_hotplug = (timestamp < manager_xrandr->resources->configTimestamp);
+  is_our_configuration = (manager_xrandr->resources->timestamp ==
+                          manager_xrandr->last_xrandr_set_timestamp);
+  if (is_hotplug)
+    {
+      meta_monitor_manager_on_hotplug (manager);
+    }
+  else
+    {
+      MetaMonitorsConfig *config;
+
+      if (is_our_configuration)
+        {
+          MetaMonitorConfigManager *config_manager =
+            meta_monitor_manager_get_config_manager (manager);
+
+          config = meta_monitor_config_manager_get_current (config_manager);
+        }
+      else
+        {
+          config = NULL;
+        }
+
+      meta_monitor_manager_rebuild_derived (manager, config);
+    }
+}
+
+static void
+logind_signal_handler (GDBusConnection *connection,
+                       const gchar     *sender_name,
+                       const gchar     *object_path,
+                       const gchar     *interface_name,
+                       const gchar     *signal_name,
+                       GVariant        *parameters,
+                       gpointer         user_data)
+{
+  MetaMonitorManagerXrandr *manager_xrandr = user_data;
+  gboolean suspending;
+
+  if (!g_str_equal (signal_name, "PrepareForSleep"))
+    return;
+
+  g_variant_get (parameters, "(b)", &suspending);
+  if (!suspending)
+    {
+      manager_xrandr->need_hardware_poll = TRUE;
+      meta_monitor_manager_xrandr_update (manager_xrandr);
+    }
+}
+
+static void
+logind_appeared (GDBusConnection *connection,
+                 const gchar     *name,
+                 const gchar     *name_owner,
+                 gpointer         user_data)
+{
+  MetaMonitorManagerXrandr *manager_xrandr = user_data;
+
+  manager_xrandr->logind_signal_sub_id = g_dbus_connection_signal_subscribe (connection,
+                                                                             "org.freedesktop.login1",
+                                                                             "org.freedesktop.login1.Manager",
+                                                                             "PrepareForSleep",
+                                                                             "/org/freedesktop/login1",
+                                                                             NULL,
+                                                                             G_DBUS_SIGNAL_FLAGS_NONE,
+                                                                             logind_signal_handler,
+                                                                             manager_xrandr,
+                                                                             NULL);
+}
+
+static void
+logind_vanished (GDBusConnection *connection,
+                 const gchar     *name,
+                 gpointer         user_data)
+{
+  MetaMonitorManagerXrandr *manager_xrandr = user_data;
+
+  if (connection && manager_xrandr->logind_signal_sub_id > 0)
+    g_dbus_connection_signal_unsubscribe (connection, manager_xrandr->logind_signal_sub_id);
+
+  manager_xrandr->logind_signal_sub_id = 0;
+}
+
 static void
 meta_monitor_manager_xrandr_init (MetaMonitorManagerXrandr *manager_xrandr)
 {
@@ -1948,6 +2069,15 @@ meta_monitor_manager_xrandr_init (MetaMonitorManagerXrandr *manager_xrandr)
       meta_monitor_manager_xrandr_init_monitors (manager_xrandr);
 #endif
     }
+
+  manager_xrandr->logind_watch_id = g_bus_watch_name (G_BUS_TYPE_SYSTEM,
+                                                      "org.freedesktop.login1",
+                                                      G_BUS_NAME_WATCHER_FLAGS_NONE,
+                                                      logind_appeared,
+                                                      logind_vanished,
+                                                      manager_xrandr,
+                                                      NULL);
+  manager_xrandr->need_hardware_poll = TRUE;
 }
 
 static void
@@ -1961,6 +2091,10 @@ meta_monitor_manager_xrandr_finalize (GObject *object)
 
   g_hash_table_destroy (manager_xrandr->tiled_monitor_atoms);
   g_free (manager_xrandr->supported_scales);
+
+  if (manager_xrandr->logind_watch_id > 0)
+    g_bus_unwatch_name (manager_xrandr->logind_watch_id);
+  manager_xrandr->logind_watch_id = 0;
 
   G_OBJECT_CLASS (meta_monitor_manager_xrandr_parent_class)->finalize (object);
 }
@@ -1996,64 +2130,16 @@ meta_monitor_manager_xrandr_class_init (MetaMonitorManagerXrandrClass *klass)
     g_quark_from_static_string ("-meta-monitor-xrandr-data");
 }
 
-static gboolean
-is_xvnc (MetaMonitorManager *manager)
-{
-  unsigned int i;
-
-  for (i = 0; i < manager->n_outputs; ++i)
-    if (g_str_has_prefix (manager->outputs[i].name, "VNC-"))
-      return TRUE;
-
-  return FALSE;
-}
-
 gboolean
 meta_monitor_manager_xrandr_handle_xevent (MetaMonitorManagerXrandr *manager_xrandr,
 					   XEvent                   *event)
 {
-  MetaMonitorManager *manager = META_MONITOR_MANAGER (manager_xrandr);
-  gboolean is_hotplug;
-  gboolean is_our_configuration;
-  unsigned int timestamp;
-
   if ((event->type - manager_xrandr->rr_event_base) != RRScreenChangeNotify)
     return FALSE;
 
   XRRUpdateConfiguration (event);
 
-  meta_monitor_manager_read_current_state (manager);
-
-
-  timestamp = manager_xrandr->resources->timestamp;
-  if (is_xvnc (manager))
-    timestamp += 100;
-
-  is_hotplug = (timestamp < manager_xrandr->resources->configTimestamp);
-  is_our_configuration = (manager_xrandr->resources->timestamp ==
-                          manager_xrandr->last_xrandr_set_timestamp);
-  if (is_hotplug)
-    {
-      meta_monitor_manager_on_hotplug (manager);
-    }
-  else
-    {
-      MetaMonitorsConfig *config;
-
-      if (is_our_configuration)
-        {
-          MetaMonitorConfigManager *config_manager =
-            meta_monitor_manager_get_config_manager (manager);
-
-          config = meta_monitor_config_manager_get_current (config_manager);
-        }
-      else
-        {
-          config = NULL;
-        }
-
-      meta_monitor_manager_xrandr_rebuild_derived (manager, config);
-    }
+  meta_monitor_manager_xrandr_update (manager_xrandr);
 
   return TRUE;
 }
