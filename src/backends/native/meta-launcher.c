@@ -363,7 +363,7 @@ get_primary_gpu_path (const gchar *seat_name)
       guint num_devices;
 
       num_devices = count_devices_with_connectors (seat_name, devices);
-      if (num_devices != 1)
+      if (num_devices > 1)
         goto out;
     }
 
