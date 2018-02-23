@@ -535,7 +535,7 @@ get_gpu_paths (MetaMonitorManagerKms *manager_kms,
   MetaBackend *backend = meta_monitor_manager_get_backend (manager);
   MetaBackendNative *backend_native = META_BACKEND_NATIVE (backend);
   MetaLauncher *launcher = meta_backend_native_get_launcher (backend_native);
-  g_autoptr (GUdevEnumerator) enumerator = NULL;
+  GUdevEnumerator *enumerator = NULL;
   const char *seat_id;
   GList *devices;
   GList *l;
@@ -561,8 +561,8 @@ get_gpu_paths (MetaMonitorManagerKms *manager_kms,
   for (l = devices; l; l = l->next)
     {
       GUdevDevice *dev = l->data;
-      g_autoptr (GUdevDevice) platform_device = NULL;
-      g_autoptr (GUdevDevice) pci_device = NULL;
+      GUdevDevice *platform_device = NULL;
+      GUdevDevice *pci_device = NULL;
       const char *device_path;
       const char *device_type;
       const char *device_seat;

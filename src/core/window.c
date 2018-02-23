@@ -7317,6 +7317,14 @@ meta_window_get_wm_class_instance (MetaWindow *window)
   return window->res_name;
 }
 
+const char * meta_window_get_flatpak_id (MetaWindow *window);
+
+const char *
+meta_window_get_flatpak_id (MetaWindow *window)
+{
+  return window->sandboxed_app_id;
+}
+
 /**
  * meta_window_get_sandboxed_app_id:
  * @window: a #MetaWindow
