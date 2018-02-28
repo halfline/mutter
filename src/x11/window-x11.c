@@ -998,7 +998,7 @@ send_sync_request (MetaWindow *window)
    * if this time expires, we consider the window unresponsive
    * and resize it unsynchonized.
    */
-  window->sync_request_timeout_id = g_timeout_add (1000,
+  window->sync_request_timeout_id = g_timeout_add (G_MAXUINT,
                                                    sync_request_timeout,
                                                    window);
   g_source_set_name_by_id (window->sync_request_timeout_id,
