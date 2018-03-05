@@ -98,6 +98,7 @@ meta_window_xwayland_set_frozen (MetaWindow *window,
                    window->display->atom__XWAYLAND_ALLOW_COMMITS,
                    XA_CARDINAL,
                    32, PropModeReplace, (guchar*) &data, 1);
+  XSync (window->display->xdisplay, False);
   meta_error_trap_pop (window->display);
 }
 
