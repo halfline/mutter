@@ -2165,3 +2165,25 @@ meta_window_actor_sync_updates_frozen (MetaWindowActor *self)
 
   meta_window_actor_set_updates_frozen (self, meta_window_updates_are_frozen (window));
 }
+
+void
+meta_window_actor_stereo_notify (MetaWindowActor *self,
+                                 gboolean         stereo_tree)
+{
+  MetaWindowActorPrivate *priv = self->priv;
+
+  if (META_IS_SURFACE_ACTOR_X11 (priv->surface))
+    meta_surface_actor_x11_stereo_notify (META_SURFACE_ACTOR_X11 (priv->surface),
+                                          stereo_tree);
+}
+
+gboolean
+meta_window_actor_is_stereo (MetaWindowActor *self)
+{
+  MetaWindowActorPrivate *priv = self->priv;
+
+  if (META_IS_SURFACE_ACTOR_X11 (priv->surface))
+    return meta_surface_actor_x11_is_stereo (META_SURFACE_ACTOR_X11 (priv->surface));
+  else
+    return FALSE;
+}
