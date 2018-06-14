@@ -575,7 +575,7 @@ init_secondary_gpu_state_gpu_copy_mode (MetaRendererNative         *renderer_nat
 
   gbm_surface = gbm_surface_create (renderer_gpu_data->gbm.device,
                                     width, height,
-                                    GBM_FORMAT_XRGB8888,
+                                    GBM_FORMAT_XBGR8888,
                                     GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
   if (!gbm_surface)
     {
@@ -998,7 +998,7 @@ meta_renderer_native_choose_egl_config (CoglDisplay  *cogl_display,
   return choose_egl_config_from_gbm_format (egl,
                                             egl_display,
                                             attributes,
-                                            GBM_FORMAT_XRGB8888,
+                                            GBM_FORMAT_XBGR8888,
                                             out_config,
                                             error);
 }
@@ -1998,7 +1998,7 @@ meta_renderer_native_create_surface_gbm (CoglOnscreen        *onscreen,
   struct gbm_surface *new_gbm_surface = NULL;
   EGLNativeWindowType egl_native_window;
   EGLSurface new_egl_surface;
-  uint32_t format = GBM_FORMAT_XRGB8888;
+  uint32_t format = GBM_FORMAT_XBGR8888;
   GArray *modifiers;
 
   renderer_gpu_data =
@@ -2381,7 +2381,7 @@ meta_onscreen_native_allocate (CoglOnscreen *onscreen,
       if (!init_dumb_fb (&onscreen_native->egl.dumb_fb,
                          onscreen_native->render_gpu,
                          width, height,
-                         GBM_FORMAT_XRGB8888,
+                         GBM_FORMAT_XBGR8888,
                          error))
         return FALSE;
 
@@ -2920,7 +2920,7 @@ create_secondary_egl_config (MetaEgl   *egl,
   return choose_egl_config_from_gbm_format (egl,
                                             egl_display,
                                             attributes,
-                                            GBM_FORMAT_XRGB8888,
+                                            GBM_FORMAT_XBGR8888,
                                             egl_config,
                                             error);
 }
